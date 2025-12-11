@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Athens Bus & Suburban Stops and Routes</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <meta charset="utf-8" />
+    <!-- lock viewport zoom on mobile to prevent bouncing and layout shifts -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <!-- leaflet css library -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <!-- custom css -->
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+</head>
+
+<body>
+    <!-- loading overlay for initial data fetch -->
+    <div id="loading-overlay">
+        <div class="loading-container">
+            <div class="loading-text-container">
+                <div id="loading-text" class="loading-text">Loading Data...</div>
+                <div id="loading-spinner" class="loading-spinner"></div>
+            </div>
+            <div class="loading-bar-background">
+                <div id="loading-bar-progress" class="loading-bar-progress"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- search bar interface -->
+    <div id="search-container">
+        <input type="text" id="search-input" placeholder="Search for a bus line...">
+        <div class="toggle-switch">
+            <input type="radio" id="search-type-lines" name="search-type" value="lines" checked>
+            <label for="search-type-lines">Lines</label>
+            <input type="radio" id="search-type-stops" name="search-type" value="stops">
+            <label for="search-type-stops">Stops</label>
+            <span class="toggle-slider"></span>
+        </div>
+        <div id="search-results-container"></div>
+    </div>
+
+    <!-- info panel for stop details -->
+    <div id="stop-info-panel">
+        <div id="stop-info-header">
+            <button id="stop-info-refresh" title="Refresh Arrivals">
+                <svg viewBox="0 0 24 24">
+                    <path d="M17.65,6.35C16.2,4.9,14.21,4,12,4A8,8,0,0,0,4,12A8,8,0,0,0,12,20C15.73,20,18.84,17.45,19.73,14H17.65C16.83,16.33,14.61,18,12,18A6,6,0,0,1,6,12A6,6,0,0,1,12,6C13.66,6,15.14,6.69,16.22,7.78L13,11H20V4L17.65,6.35Z"></path>
+                </svg>
+            </button>
+            <h3 id="stop-info-title"></h3>
+            
+            <div id="auto-refresh-container">
+                <span class="auto-refresh-text">Auto Refresh in:</span>
+                <div class="timer-wrapper">
+                    <svg class="timer-svg" viewBox="0 0 36 36">
+                        <path class="timer-track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                        <path class="timer-progress" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                    </svg>
+                    <div id="timer-text" class="timer-text">30</div>
+                </div>
+            </div>
+            <span id="stop-info-close">×</span>
+        </div>
+
+        <div id="tab-switcher">
+            <button id="tab-arrivals" class="tab-button active">Arrivals</button>
+            <button id="tab-lines" class="tab-button">Lines</button>
+        </div>
+        <hr class="info-separator">
+
+        <div id="panel-content-wrapper">
+            <div id="stop-info-arrivals" class="panel-content active"></div>
+            <div id="stop-info-lines-content" class="panel-content"></div>
+        </div>
+    </div>
+
+    <!-- schedule panel -->
+    <div id="schedule-panel">
+        <div id="schedule-loading-overlay">
+            <div class="loading-container">
+                <div id="schedule-loading-text" class="loading-text">Loading Schedule...</div>
+                <div class="loading-bar-background">
+                    <div id="schedule-loading-bar-progress" class="loading-bar-progress"></div>
+                </div>
+            </div>
+        </div>
+        <div id="schedule-header">
+            <div id="schedule-title"></div>
+            <span id="schedule-close">×</span>
+        </div>
+        <div id="schedule-content">
+            <div id="go-times-section" class="schedule-times-section">
+                <p>Start ➔ Finish:</p>
+                <div id="schedule-go-times" class="schedule-times-container"></div>
+            </div>
+            <div id="come-times-section" class="schedule-times-section">
+                <p>Finish ➔ Start:</p>
+                <div id="schedule-come-times" class="schedule-times-container"></div>
+            </div>
+            <div id="schedule-routes-section">
+                <p id="schedule-routes-title"></p>
+                <div id="schedule-routes-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- metro station info panel -->
+    <div id="metro-station-panel">
+        <div id="metro-station-header">
+            <h3 id="metro-station-title"></h3>
+            <span id="metro-station-close">×</span>
+        </div>
+        <div id="metro-station-content">
+            <p>Lines:</p>
+            <div id="metro-station-lines"></div>
+        </div>
+    </div>
+
+    <!-- suburban station info panel -->
+    <div id="suburban-station-panel">
+        <div id="suburban-station-header">
+            <button id="suburban-station-refresh" title="Refresh Arrivals">
+                <svg viewBox="0 0 24 24">
+                    <path d="M17.65,6.35C16.2,4.9,14.21,4,12,4A8,8,0,0,0,4,12A8,8,0,0,0,12,20C15.73,20,18.84,17.45,19.73,14H17.65C16.83,16.33,14.61,18,12,18A6,6,0,0,1,6,12A6,6,0,0,1,12,6C13.66,6,15.14,6.69,16.22,7.78L13,11H20V4L17.65,6.35Z"></path>
+                </svg>
+            </button>
+            <h3 id="suburban-station-title"></h3>
+
+            <div id="suburban-refresh-container">
+                <span class="auto-refresh-text">Auto Refresh in:</span>
+                <div class="timer-wrapper">
+                    <svg class="timer-svg" viewBox="0 0 36 36">
+                        <path class="timer-track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                        <path id="suburban-timer-progress" class="timer-progress" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                    </svg>
+                    <div id="suburban-timer-text" class="timer-text">90</div>
+                </div>
+            </div>
+
+            <span id="suburban-station-close">×</span>
+        </div>
+        <div id="suburban-station-content"></div>
+    </div>
+
+    <!-- map container -->
+    <div id="map"></div>
+
+    <!-- notification popup -->
+    <div id="plot-notification">
+        <span id="notification-text">Route Plotted!</span>
+        <div id="notification-timer-bar"></div>
+    </div>
+
+    <!-- controls container -->
+    <div class="leaflet-top leaflet-left custom-controls-container">
+        <button id="location-button" title="Center on my location">
+            <svg width="24" height="24" viewBox="0 0 24 24">
+                <path d="M12 8c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm8.94 3c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06zM12 19c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z" />
+            </svg>
+        </button>
+
+        <button id="layer-control-button" title="Toggle map layers">
+            <svg width="24" height="24" viewBox="0 0 24 24">
+                <g fill="currentColor">
+                    <rect x="5" y="5" width="14" height="6" rx="3" />
+                    <circle cx="16" cy="8" r="2" fill="white" />
+                    <rect x="5" y="13" width="14" height="6" rx="3" />
+                    <circle cx="8" cy="16" r="2" fill="white" />
+                </g>
+            </svg>
+        </button>
+
+        <button id="clear-route-button" title="Clear plotted routes">
+            <svg width="24" height="24" viewBox="0 0 24 24">
+                <g class="trash-lid">
+                    <path d="M18 6h-1v-1c0-1.1-0.9-2-2-2h-6c-1.1 0-2 0.9-2 2v1h-1c-0.55 0-1 0.45-1 1s0.45 1 1 1h12c0.55 0 1-0.45 1-1s-0.45-1-1-1z m-3-1h-4v-1h4v1z" />
+                </g>
+                <g class="trash-base">
+                    <path d="M17.5 9h-11c-0.41 0-0.75 0.34-0.75 0.75s0.34 0.75 0.75 0.75h0.5v9.5c0 0.55 0.45 1 1 1h8c0.55 0 1-0.45 1-1v-9.5h0.5c0.41 0 0.75-0.34 0.75-0.75s-0.34-0.75-0.75-0.75z" />
+                </g>
+            </svg>
+        </button>
+
+        <!-- container for floating route timers -->
+        <div id="active-timers-container"></div>
+    </div>
+
+    <!-- layer control toggles -->
+    <div id="layer-control-panel">
+        <div class="layer-toggle-row">
+            <span>Bus Stops</span>
+            <label class="toggle-control">
+                <input type="checkbox" id="toggle-bus-stops" checked>
+                <span class="slider round"></span>
+            </label>
+        </div>
+        <div class="layer-toggle-row">
+            <div class="toggle-text-col">
+                <span>Bus Network</span>
+                <span class="zoom-info-text">Zoom in to see</span>
+            </div>
+            <label class="toggle-control">
+                <input type="checkbox" id="toggle-bus-network">
+                <span class="slider round"></span>
+            </label>
+        </div>
+        <div class="layer-toggle-row">
+            <span>Zoom on route</span>
+            <label class="toggle-control">
+                <input type="checkbox" id="toggle-zoom-on-route" checked>
+                <span class="slider round"></span>
+            </label>
+        </div>
+        <div class="layer-toggle-row">
+            <span>Metro Network</span>
+            <label class="toggle-control">
+                <input type="checkbox" id="toggle-metro-network" checked>
+                <span class="slider round"></span>
+            </label>
+        </div>
+        <div class="layer-toggle-row">
+            <span>Suburban Network</span>
+            <label class="toggle-control">
+                <input type="checkbox" id="toggle-suburban-network" checked>
+                <span class="slider round"></span>
+            </label>
+        </div>
+    </div>
+
+    <!-- delete confirmation popup -->
+    <div id="delete-options-popup">
+        <div class="popup-content">
+            <div class="popup-buttons">
+                <button id="delete-route-cyan" class="route-delete-button">
+                    <span class="button-color-box cyan"></span>
+                    <span class="button-text">Delete Cyan Route</span>
+                </button>
+                <button id="delete-route-green" class="route-delete-button">
+                    <span class="button-color-box green"></span>
+                    <span class="button-text">Delete Green Route</span>
+                </button>
+                <button id="delete-route-all" class="popup-button-secondary">Delete Both</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- leaflet js library -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
+
+    <!-- javascript files split into modules -->
+    <div id="delay-tooltip"></div>
+    <script src="js/1-globals.js"></script>
+    <script src="js/2-utils.js"></script>
+    <script src="js/3-map-engine.js"></script>
+    <script src="js/4-metro-suburban.js"></script>
+    <script src="js/5-bus-logic.js"></script>
+    <script src="js/6-search-schedule.js"></script>
+    <script src="js/7-main.js"></script>
+
+</body>
+
+</html>
