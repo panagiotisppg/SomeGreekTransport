@@ -2,6 +2,16 @@
 <html lang="en">
 
 <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9Z47V04RHE"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-9Z47V04RHE');
+    </script>
+
     <title>Athens Bus & Suburban Stops and Routes</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <meta charset="utf-8" />
@@ -154,7 +164,7 @@
         <div id="notification-timer-bar"></div>
     </div>
 
-    <!-- controls container -->
+    <!-- custom controls container -->
     <div class="leaflet-top leaflet-left custom-controls-container">
         <button id="location-button" title="Center on my location">
             <svg width="24" height="24" viewBox="0 0 24 24">
@@ -191,6 +201,13 @@
     <!-- layer control toggles -->
     <div id="layer-control-panel">
         <div class="layer-toggle-row">
+            <span>Zoom on route</span>
+            <label class="toggle-control">
+                <input type="checkbox" id="toggle-zoom-on-route" checked>
+                <span class="slider round"></span>
+            </label>
+        </div>
+        <div class="layer-toggle-row">
             <span>Bus Stops</span>
             <label class="toggle-control">
                 <input type="checkbox" id="toggle-bus-stops" checked>
@@ -204,13 +221,6 @@
             </div>
             <label class="toggle-control">
                 <input type="checkbox" id="toggle-bus-network">
-                <span class="slider round"></span>
-            </label>
-        </div>
-        <div class="layer-toggle-row">
-            <span>Zoom on route</span>
-            <label class="toggle-control">
-                <input type="checkbox" id="toggle-zoom-on-route" checked>
                 <span class="slider round"></span>
             </label>
         </div>
@@ -251,7 +261,7 @@
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
 
-    <!-- javascript files split into modules -->
+    <!-- custom javascript files split into logical modules -->
     <div id="delay-tooltip"></div>
     <script src="js/1-globals.js"></script>
     <script src="js/2-utils.js"></script>
