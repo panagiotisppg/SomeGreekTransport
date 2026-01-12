@@ -156,7 +156,7 @@ async function plotAnimatedRoute(routeCode, lineID, routeDescr) {
   // we will add the visual element in the rendering phase below
   startBusLocationTimer(routeCode, color);
 
-  const detailsUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=webGetRoutesDetailsAndStops&p1=${routeCode}`)}`;
+  const detailsUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=webGetRoutesDetailsAndStops&p1=${routeCode}&t=${Date.now()}`)}`;
   try {
     const response = await fetch(detailsUrl);
     const data = await response.json();
@@ -563,8 +563,8 @@ async function showStopInfo(stopProperties) {
   }
 
   const stopCode = stopProperties.StopCode;
-  const routesUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=webRoutesForStop&p1=${stopCode}`)}`;
-  const arrivalsUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}`)}`;
+  const routesUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=webRoutesForStop&p1=${stopCode}&t=${Date.now()}`)}`;
+  const arrivalsUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}&t=${Date.now()}`)}`;
   showLoadingUI(linesContent, "Loading Lines...");
   try {
     const response = await fetch(routesUrl);
@@ -718,7 +718,7 @@ stopInfoRefresh.addEventListener("click", () => {
       refreshBusLocations(route.routeCode);
     });
     const stopCode = currentStopProperties.StopCode;
-    const arrivalsUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}`)}`;
+    const arrivalsUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}&t=${Date.now()}`)}`;
     fetchAndDisplayArrivals(arrivalsUrl);
   }
 });

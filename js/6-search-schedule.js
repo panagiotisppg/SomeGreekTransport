@@ -15,9 +15,9 @@ async function showSchedulePanel(lineData) {
   scheduleTitle.innerHTML = `<div class="line-id-pill">${lineData.LineID}</div><span>${lineData.LineDescrEng}</span>`;
   scheduleRoutesTitle.innerHTML = `Routes of <div class="line-id-pill">${lineData.LineID}</div>:`;
 
-  const scheduleUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=getDailySchedule&line_code=${lineData.LineCode}`)}`;
-  const routesForLineUrl = `https://corsproxy.io/?${encodeURIComponent(`https://telematics.oasa.gr/api/?act=getRoutesForLine&p1=${lineData.LineCode}`)}`;
-
+  const scheduleUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=getDailySchedule&line_code=${lineData.LineCode}&t=${Date.now()}`)}`;
+  const routesForLineUrl = `https://corsproxy.io/?${encodeURIComponent(`https://telematics.oasa.gr/api/?act=getRoutesForLine&p1=${lineData.LineCode}&t=${Date.now()}`)}`;
+  
   try {
     setTimeout(() => { scheduleProgressBar.style.width = "30%"; }, 50);
     const [scheduleResponse, routesResponse] = await Promise.all([
