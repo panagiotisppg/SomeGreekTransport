@@ -1,6 +1,8 @@
 # SomeGreekTransport
 A lightweight, user-friendly wrapper for some public Greek bus and suburban APIs.
 
+You can test the live application [here](https://panagiotisppg.github.io/SomeGreekTransport/).
+
 ---
 
 ### Usage Notice
