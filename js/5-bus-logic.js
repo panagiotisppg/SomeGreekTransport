@@ -1,4 +1,4 @@
-const PROXY_URL = "https://oasa-proxy.panagot94.workers.dev/?url=";
+// const PROXY_URL = "https://oasa-proxy.panagot94.workers.dev/?url=";
 
 const createBusTextIcon = (lineID, vehNo, color) => {
   const html = `<div class="bus-icon-body" style="background-color: ${colorHex[color]}"><span class="bus-icon-lineid">${lineID}</span><span class="bus-icon-vehno">${vehNo}</span><div class="bus-icon-tire tire-left"></div><div class="bus-icon-tire tire-right"></div></div>`;
@@ -425,7 +425,7 @@ async function refreshBusLocations(routeCode) {
     const plottedRoute = plottedRoutes.find((r) => r.routeCode === routeCode);
     if (!plottedRoute) return;
     const uniqueUrl = `http://telematics.oasa.gr/api/?act=getBusLocation&p1=${routeCode}&t=${Date.now()}`;
-    const busUrl = `https://corsproxy.io/?${encodeURIComponent(uniqueUrl)}`;
+    const busUrl = `${PROXY_URL}${encodeURIComponent(uniqueUrl)}`;
     try {
         const response = await fetch(busUrl);
         const busData = await response.json();

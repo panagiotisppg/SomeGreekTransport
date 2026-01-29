@@ -1,4 +1,4 @@
-const PROXY_URL = "https://oasa-proxy.panagot94.workers.dev/?url=";
+// const PROXY_URL = "https://oasa-proxy.panagot94.workers.dev/?url=";
 // panel logic
 async function showSchedulePanel(lineData) {
   if (stopInfoPanel.classList.contains('visible')) {

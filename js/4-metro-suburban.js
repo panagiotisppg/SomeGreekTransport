@@ -1,3 +1,4 @@
+const PROXY_URL = "https://oasa-proxy.panagot94.workers.dev/?url=";
 // icon creators
 function createMetroIcon(msym) {
   const size = 24;
@@ -94,7 +95,7 @@ async function fetchAndDisplaySuburbanData() {
     contentArea.innerHTML = `<div class="info-message">Live data is not available for this station.</div>`;
     return;
   }
-  const apiUrl = `https://corsproxy.io/?${encodeURIComponent(`https://ose.mpass.ltd/api/v1/screens/${stationId}/data/multilingual`)}`;
+  const apiUrl = `${PROXY_URL}${encodeURIComponent(`https://ose.mpass.ltd/api/v1/screens/${stationId}/data/multilingual?t=${Date.now()}`)}`;
 
   try {
     if (loaderBar) loaderBar.style.width = '30%';
