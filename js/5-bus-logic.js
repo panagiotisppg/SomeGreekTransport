@@ -1,4 +1,5 @@
-// icons and styles
+const PROXY_URL = "https://oasa-proxy.panagot94.workers.dev/?url=";
+
 const createBusTextIcon = (lineID, vehNo, color) => {
   const html = `<div class="bus-icon-body" style="background-color: ${colorHex[color]}"><span class="bus-icon-lineid">${lineID}</span><span class="bus-icon-vehno">${vehNo}</span><div class="bus-icon-tire tire-left"></div><div class="bus-icon-tire tire-right"></div></div>`;
   return L.divIcon({ className: "bus-text-icon", html: html, iconSize: [40, 36], iconAnchor: [20, 18], });
@@ -14,13 +15,11 @@ const getSelectedStopStyle = () => {
   return { radius: 11, fillColor: fillColor, color: "#ffffff", weight: 2, opacity: 1, fillOpacity: 1, };
 };
 
-// NEW: Helper to create the visual timer element
 const createRouteTimerUI = (routeCode, lineID, color) => {
     const wrapper = document.createElement('div');
     wrapper.className = 'active-route-timer';
     wrapper.id = `route-timer-${routeCode}`;
     
-    // Ensure we use the correct hex color
     const strokeColor = colorHex[color] || '#333';
 
     wrapper.innerHTML = `
@@ -153,10 +152,10 @@ async function plotAnimatedRoute(routeCode, lineID, routeDescr) {
   const lineStyle = routeStyles[color];
   
   // Start the timer immediately so logic works, 
-  // we will add the visual element in the rendering phase below
+  // we add the visual element in the rendering phase below
   startBusLocationTimer(routeCode, color);
 
-  const detailsUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=webGetRoutesDetailsAndStops&p1=${routeCode}&t=${Date.now()}`)}`;
+  const detailsUrl = `${PROXY_URL}${encodeURIComponent(`http://telematics.oasa.gr/api/?act=webGetRoutesDetailsAndStops&p1=${routeCode}&t=${Date.now()}`)}`;
   try {
     const response = await fetch(detailsUrl);
     const data = await response.json();
@@ -563,8 +562,8 @@ async function showStopInfo(stopProperties) {
   }
 
   const stopCode = stopProperties.StopCode;
-  const routesUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=webRoutesForStop&p1=${stopCode}&t=${Date.now()}`)}`;
-  const arrivalsUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}&t=${Date.now()}`)}`;
+  const routesUrl = `${PROXY_URL}${encodeURIComponent(`http://telematics.oasa.gr/api/?act=webRoutesForStop&p1=${stopCode}&t=${Date.now()}`)}`;
+  const arrivalsUrl = `${PROXY_URL}${encodeURIComponent(`http://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}&t=${Date.now()}`)}`;
   showLoadingUI(linesContent, "Loading Lines...");
   try {
     const response = await fetch(routesUrl);
@@ -718,7 +717,7 @@ stopInfoRefresh.addEventListener("click", () => {
       refreshBusLocations(route.routeCode);
     });
     const stopCode = currentStopProperties.StopCode;
-    const arrivalsUrl = `https://corsproxy.io/?${encodeURIComponent(`http://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}&t=${Date.now()}`)}`;
+    const arrivalsUrl = `${PROXY_URL}${encodeURIComponent(`http://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}&t=${Date.now()}`)}`;
     fetchAndDisplayArrivals(arrivalsUrl);
   }
 });
