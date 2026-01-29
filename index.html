@@ -243,17 +243,33 @@
     <!-- delete confirmation popup -->
     <div id="delete-options-popup">
         <div class="popup-content">
-            <div class="popup-buttons">
-                <button id="delete-route-cyan" class="route-delete-button">
-                    <span class="button-color-box cyan"></span>
-                    <span class="button-text">Delete Cyan Route</span>
-                </button>
-                <button id="delete-route-green" class="route-delete-button">
-                    <span class="button-color-box green"></span>
-                    <span class="button-text">Delete Green Route</span>
-                </button>
-                <button id="delete-route-all" class="popup-button-secondary">Delete Both</button>
+            <!-- row for cyan Route -->
+            <div id="delete-route-cyan" class="route-delete-row" style="display: none;">
+                <div class="route-delete-info">
+                    <span class="delete-route-id text-cyan"></span>
+                    <span class="delete-route-descr"></span>
+                </div>
+                <button class="route-delete-action">Delete</button>
             </div>
+
+            <!-- row for green Route -->
+            <div id="delete-route-green" class="route-delete-row" style="display: none;">
+                <div class="route-delete-info">
+                    <span class="delete-route-id text-green"></span>
+                    <span class="delete-route-descr"></span>
+                </div>
+                <button class="route-delete-action">Delete</button>
+            </div>
+
+            <button id="delete-route-all">Delete Both</button>
+        </div>
+    </div>
+
+    <!-- timer options popup -->
+    <div id="timer-options-popup">
+        <div class="timer-popup-content">
+            <div id="timer-popup-route-name"></div>
+            <button id="timer-popup-delete-btn">Delete</button>
         </div>
     </div>
 

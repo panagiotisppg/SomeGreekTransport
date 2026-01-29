@@ -1,5 +1,3 @@
-// const PROXY_URL = "https://oasa-proxy.panagot94.workers.dev/?url=";
-
 const createBusTextIcon = (lineID, vehNo, color) => {
   const html = `<div class="bus-icon-body" style="background-color: ${colorHex[color]}"><span class="bus-icon-lineid">${lineID}</span><span class="bus-icon-vehno">${vehNo}</span><div class="bus-icon-tire tire-left"></div><div class="bus-icon-tire tire-right"></div></div>`;
   return L.divIcon({ className: "bus-text-icon", html: html, iconSize: [40, 36], iconAnchor: [20, 18], });
@@ -15,10 +13,12 @@ const getSelectedStopStyle = () => {
   return { radius: 11, fillColor: fillColor, color: "#ffffff", weight: 2, opacity: 1, fillOpacity: 1, };
 };
 
+
 const createRouteTimerUI = (routeCode, lineID, color) => {
     const wrapper = document.createElement('div');
     wrapper.className = 'active-route-timer';
     wrapper.id = `route-timer-${routeCode}`;
+    wrapper.style.cursor = 'pointer'; 
     
     const strokeColor = colorHex[color] || '#333';
 
@@ -32,6 +32,41 @@ const createRouteTimerUI = (routeCode, lineID, color) => {
         </svg>
         <div class="route-timer-text">${lineID}</div>
     `;
+
+    // add a click listener for the popup
+    wrapper.addEventListener('click', (e) => {
+        e.stopPropagation(); // Stop map from clicking
+
+        // 1. find the route data
+        const route = plottedRoutes.find(r => r.routeCode === routeCode);
+        if (!route) return;
+
+        // 2. manage panels (close others)
+        manageOpenPanels('timer');
+
+        // 3. populate popup text
+        if (timerPopupRouteName) {
+            timerPopupRouteName.innerHTML = `<span style="color:${colorHex[route.color]}">${route.lineID}</span> ${route.routeDescr}`;
+        }
+
+        // 4. handle delete button logic
+        if (timerPopupDeleteBtn) {
+            timerPopupDeleteBtn.onclick = (ev) => {
+                ev.stopPropagation();
+                timerOptionsPopup.classList.remove('visible');
+                clearRoutes([route]);
+            };
+        }
+
+        // 5. Position and Show Popup
+        const rect = wrapper.getBoundingClientRect();
+        if (timerOptionsPopup) {
+            timerOptionsPopup.style.top = `${rect.top}px`;
+            timerOptionsPopup.style.left = `${rect.right + 10}px`;
+            timerOptionsPopup.classList.add('visible');
+        }
+    });
+
     return wrapper;
 };
 
@@ -281,6 +316,9 @@ function clearRoutes(routesToDelete) {
   if (plottedRoutes.length === routesToDelete.length) {
     clearRouteButton.classList.add("clearing");
   }
+  if (timerOptionsPopup && timerOptionsPopup.classList.contains('visible')) {
+      timerOptionsPopup.classList.remove('visible');
+  }
   
   routesToDelete.forEach((route) => {
     // 1. Stop the data logic
@@ -359,12 +397,10 @@ function startBusLocationTimer(routeCode, color) {
       }
     }
     
-    // --- UPDATE UI LOGIC ---
     const displayTime = Math.max(0, timeLeft);
     const progress = displayTime / busRefreshDuration;
     const offset = circumference * (1 - progress);
 
-    // 1. Update In-Panel Timers (Original logic)
     const panelTimers = document.querySelectorAll(`.arrival-row[data-route-code="${routeCode}"] .btime-timer-wrapper`);
     panelTimers.forEach((wrapper) => {
         wrapper.classList.add("visible");
@@ -381,7 +417,7 @@ function startBusLocationTimer(routeCode, color) {
         }
     });
 
-    // 2. Update Floating Route Timer (New logic)
+    // Update Floating Route Timer 
     const floatingTimer = document.getElementById(`route-timer-${routeCode}`);
     if (floatingTimer) {
         const progressCircle = floatingTimer.querySelector(".route-timer-progress");
@@ -389,7 +425,6 @@ function startBusLocationTimer(routeCode, color) {
             progressCircle.style.strokeDashoffset = offset;
         }
     }
-    // -----------------------
 
   }, 1000);
   busRefreshTimers.set(routeCode, intervalId);
@@ -725,30 +760,72 @@ stopInfoRefresh.addEventListener("click", () => {
 clearRouteButton.addEventListener('click', (e) => {
     e.stopPropagation(); 
     if (plottedRoutes.length === 0 || isClearing) return;
+    
+    // toggle logic
     if (deletePopup.classList.contains('visible')) {
         deletePopup.classList.remove('visible');
         return;
     }
+    
     manageOpenPanels('delete');
+
+    // position the popup
     const btnRect = clearRouteButton.getBoundingClientRect();
     deletePopup.style.top = `${btnRect.top}px`;
     deletePopup.style.left = `${btnRect.right + 10}px`;
+
+    // reset Elements
     deleteCyanBtn.style.display = 'none';
     deleteGreenBtn.style.display = 'none';
     deleteAllBtn.style.display = 'none';
+
+    // 1. setup cyan route row
     const cyanRoute = plottedRoutes.find(r => r.color === 'cyan');
     if (cyanRoute) {
-        deleteCyanBtn.style.display = 'flex'; 
-        deleteCyanBtn.querySelector('.button-text').innerHTML = `Route ${cyanRoute.lineID} <span class="modal-route-descr">${cyanRoute.routeDescr}</span>`;
+        deleteCyanBtn.style.display = 'flex';
+        // update text
+        deleteCyanBtn.querySelector('.delete-route-id').textContent = cyanRoute.lineID;
+        deleteCyanBtn.querySelector('.delete-route-descr').textContent = cyanRoute.routeDescr;
+        
+        // handle "Delete" click (the button on the right)
+        const actionBtn = deleteCyanBtn.querySelector('.route-delete-action');
+        // Remove old listeners by cloning
+        const newBtn = actionBtn.cloneNode(true);
+        actionBtn.parentNode.replaceChild(newBtn, actionBtn);
+        
+        newBtn.onclick = (ev) => {
+            ev.stopPropagation();
+            clearRoutes([cyanRoute]);
+            deletePopup.classList.remove('visible');
+        };
     }
+
+    // 2. setup green route row
     const greenRoute = plottedRoutes.find(r => r.color === 'green');
     if (greenRoute) {
-        deleteGreenBtn.style.display = 'flex'; 
-        deleteGreenBtn.querySelector('.button-text').innerHTML = `Route ${greenRoute.lineID} <span class="modal-route-descr">${greenRoute.routeDescr}</span>`;
+        deleteGreenBtn.style.display = 'flex';
+        // update text
+        deleteGreenBtn.querySelector('.delete-route-id').textContent = greenRoute.lineID;
+        deleteGreenBtn.querySelector('.delete-route-descr').textContent = greenRoute.routeDescr;
+        
+        // handle "Delete" click
+        const actionBtn = deleteGreenBtn.querySelector('.route-delete-action');
+        // Remove old listeners by cloning
+        const newBtn = actionBtn.cloneNode(true);
+        actionBtn.parentNode.replaceChild(newBtn, actionBtn);
+        
+        newBtn.onclick = (ev) => {
+            ev.stopPropagation();
+            clearRoutes([greenRoute]);
+            deletePopup.classList.remove('visible');
+        };
     }
+
+    // 3. setup "Delete Both"
     if (plottedRoutes.length > 1) {
         deleteAllBtn.style.display = 'block';
     }
+
     deletePopup.classList.add('visible');
 });
 

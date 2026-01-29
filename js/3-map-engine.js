@@ -397,6 +397,7 @@ toggleSuburbanNetwork.addEventListener('change', (e) => {
 map.on("click", (e) => {
   if (deletePopup.classList.contains('visible')) deletePopup.classList.remove('visible');
   if (layerControlPanel.classList.contains('visible')) layerControlPanel.classList.remove('visible');
+  if (timerOptionsPopup && timerOptionsPopup.classList.contains('visible')) timerOptionsPopup.classList.remove('visible');
   if (!searchContainer.contains(e.originalEvent.target)) searchResultsContainer.classList.remove("visible");
 });
 map.on('movestart', () => map.closePopup());

@@ -44,10 +44,11 @@ function manageOpenPanels(panelToKeep) {
   const panels = [
     { element: searchResultsContainer, name: 'search' },
     { element: deletePopup, name: 'delete' },
-    { element: layerControlPanel, name: 'layers' }
+    { element: layerControlPanel, name: 'layers' },
+    { element: timerOptionsPopup, name: 'timer' }
   ];
   panels.forEach(panel => {
-    if (panel.name !== panelToKeep && panel.element.classList.contains('visible')) {
+    if (panel.name !== panelToKeep && panel && panel.element && panel.element.classList.contains('visible')) {
       panel.element.classList.remove('visible');
     }
   });
