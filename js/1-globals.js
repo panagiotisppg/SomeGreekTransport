@@ -1,4 +1,3 @@
-// dom elements
 const loadingOverlay = document.getElementById("loading-overlay");
 const progressBar = document.getElementById("loading-bar-progress");
 const loadingText = document.getElementById("loading-text");
@@ -27,12 +26,17 @@ const suburbanStationPanel = document.getElementById("suburban-station-panel");
 const suburbanStationTitle = document.getElementById("suburban-station-title");
 const suburbanStationClose = document.getElementById("suburban-station-close");
 const suburbanStationRefresh = document.getElementById("suburban-station-refresh");
+const tramStationPanel = document.getElementById("tram-station-panel");
+const tramStationTitle = document.getElementById("tram-station-title");
+const tramStationLines = document.getElementById("tram-station-lines");
+const tramStationClose = document.getElementById("tram-station-close");
 const layerControlBtn = document.getElementById('layer-control-button');
 const layerControlPanel = document.getElementById('layer-control-panel');
 const toggleZoomOnRoute = document.getElementById('toggle-zoom-on-route'); 
 const toggleBusStops = document.getElementById('toggle-bus-stops');
 const toggleBusNetwork = document.getElementById('toggle-bus-network');
 const toggleMetroNetwork = document.getElementById('toggle-metro-network');
+const toggleTramNetwork = document.getElementById('toggle-tram-network');
 const toggleSuburbanNetwork = document.getElementById('toggle-suburban-network');
 const suburbanRefreshContainer = document.getElementById("suburban-refresh-container");
 const suburbanTimerProgress = document.getElementById("suburban-timer-progress");
@@ -62,13 +66,11 @@ const customControlsContainer = document.querySelector(".custom-controls-contain
 const delayTooltip = document.getElementById('delay-tooltip');
 const activeTimersContainer = document.getElementById('active-timers-container');
 
-// apply touch setting for dragging
 if (plotNotification) {
     plotNotification.style.touchAction = "none";
     plotNotification.style.cursor = "grab";
 }
 
-// global state
 let suburbanRefreshIntervalId = null;
 let currentSuburbanProperties = null;
 const suburbanRefreshDuration = 90;
@@ -95,11 +97,10 @@ let mergedStopsGeoJSON = { features: [] };
 let stopStreetmap = new Map();
 let userLocationMarker = null;
 let stopsLayerNotInteractive, stopsLayerInteractive, routesLayer, stopsHeadingLayer;
-let metroLayer, metroStationsLayer, suburbanLayer, suburbanStationsLayer;
+let metroLayer, metroStationsLayer, suburbanLayer, suburbanStationsLayer, tramLayer, tramStationsLayer;
 let isUpdatingHeadings = false;
 let notificationTimeout = null;
 
-// configs and data
 const suburbanStationCodes = {
   "ΑΓΙΟΣ ΣΤΕΦΑΝΟΣ": 83, "ΔΕΚΕΛΕΙΑ": 149, "ΑΦΙΔΝΕΣ": 89, "ΣΦΕΝΔΑΛΗ": 555,
   "ΑΥΛΩΝΑΣ": 87, "ΑΓΙΟΣ ΘΩΜΑΣ": 681, "ΟΙΝΟΦΥΤΑ": 412, "ΟΙΝΟΗ": 11,
@@ -126,6 +127,20 @@ const metroLineColors = {
   1: '#1f8136ff', 2: '#b80600ff', 3: '#004c9eff', 33: '#004c9eff'
 };
 
+const tramColors = {
+    'T6': '#c078aa',
+    'T7': '#bb4293',
+    'T6+T7': '#902068',
+    'T7+T6': '#902068'
+};
+
+const tramStopColors = {
+    'T6': '#a0608d',
+    'T7': '#9b3075',
+    'T6+T7': '#751050',
+    'T7+T6': '#751050'
+};
+
 const colorHex = {
   cyan: "#146eff", green: "#28a745", darkCyan: "#2c5aa0", darkGreen: "#1d7b34",
 };
@@ -150,7 +165,6 @@ const greeklishMap = {
   Α: "A", Β: "V", Γ: "G", Δ: "D", Ε: "E", Ζ: "Z", Η: "H", Θ: "TH", Ι: "I", Κ: "K", Λ: "L", Μ: "M", Ν: "N", Ξ: "KS", Ο: "O", Π: "P", Ρ: "R", Σ: "S", Τ: "T", Υ: "Y", Φ: "F", Χ: "X", Ψ: "PS", Ω: "O"
 };
 
-// icons
 const plotRouteIconSvg = `<svg class="plot-route-svg" viewBox="0 0 24 24"><g transform="translate(5, 22)"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M 1 0 L 1 -13 C 1 -18 7 -18 7 -13 L 7 -7 C 7 -2 13 -2 13 -7 L 13 -20"></path><circle fill="currentColor" cx="1" cy="0" r="2.5"></circle><circle fill="currentColor" cx="13" cy="-20" r="2.5"></circle></g></svg>`;
 const accessibilityIconSvg = `<svg class="access-icon-svg" viewBox="0 0 24 24"><g fill="none" stroke="#003366" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><rect x="6.5" y="6" width="8" height="8" rx="1"/><circle cx="8.5" cy="15" r="1"/><circle cx="12.5" cy="15" r="1"/><path d="M 22 14 H 16 V 16"/></g></svg>`;
 const smartStopIconSvg = `<svg class="access-icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#003366" stroke-width="1.5"/><g fill="#003366"><circle cx="15.5" cy="7.8" r="1.5"/><rect x="7" y="9" width="10" height="5" rx="1"/><rect x="14.9" y="14" width="2" height="4"/></g></svg>`;

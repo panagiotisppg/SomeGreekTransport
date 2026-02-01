@@ -2048,3 +2048,117 @@ input:checked + .slider:before {
 #timer-popup-delete-btn:hover {
     background-color: #dc2626;
 }
+
+
+
+
+
+
+
+
+/* add #tram-station-panel to the shared glass block */
+#stop-info-panel,
+#schedule-panel,
+#metro-station-panel,
+#suburban-station-panel,
+#tram-station-panel {
+    /* Glass Effect */
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-backdrop);
+    -webkit-backdrop-filter: var(--glass-backdrop);
+    border: var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    /* End Glass Effect */
+    
+    position: absolute; 
+    border-radius: 8px; 
+    z-index: 1003;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* tram panel specific positioning */
+#tram-station-panel {
+    top: 65px;
+    right: 10px;
+    width: 320px;
+    max-width: calc(85% - 20px);
+    transform: translateX(calc(100% + 20px));
+    pointer-events: none;
+    opacity: 0;
+}
+
+#tram-station-panel.visible {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#tram-station-header {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-bottom: 1px solid #eee;
+}
+
+#tram-station-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#tram-station-close {
+    font-size: 22px;
+    color: #999;
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+#tram-station-close:hover {
+    color: #333;
+}
+
+#tram-station-content {
+    padding: 12px;
+}
+
+#tram-station-content p {
+    margin: 0 0 5px 0;
+    font-size: 13px;
+    color: #777;
+}
+
+#tram-station-lines {
+    font-size: 18px;
+    font-weight: 700;
+    color: #333;
+}
+
+.tram-station-icon {
+    cursor: pointer;
+}
+
+/* mobile override */
+@media (max-width: 768px) {
+    #tram-station-panel {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        max-width: 100%;
+        border-radius: 12px 12px 0 0;
+        transform: translateY(100%);
+        box-sizing: border-box;
+    }
+    
+    #tram-station-panel.visible {
+        transform: translateY(0);
+    }
+}

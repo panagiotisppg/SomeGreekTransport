@@ -72,15 +72,19 @@ document.addEventListener("DOMContentLoaded", () => {
       dataCache.metroLinesData = metroLines;
       dataCache.metroStationsData = metroStations;
       updateProgressBar(65);
-      loadingText.innerText = "Loading Suburban Rail Data...";
+      loadingText.innerText = "Loading Suburban & Tram Data...";
       return Promise.all([
         fetchAndDecompressGzip(`${dataPath}Proastiakos_AM_CoR.json.gz`),
-        fetchAndDecompressGzip(`${dataPath}Proastiakos_Stops_AM_CoR.json.gz`)
+        fetchAndDecompressGzip(`${dataPath}Proastiakos_Stops_AM_CoR.json.gz`),
+        fetchAndDecompressGzip(`${dataPath}tram_lines.json.gz`),
+        fetchAndDecompressGzip(`${dataPath}tram_stops.json.gz`)
       ]);
     })
-    .then(([suburbanLines, suburbanStations]) => {
+    .then(([suburbanLines, suburbanStations, tramLines, tramStops]) => {
       dataCache.suburbanLinesData = suburbanLines;
       dataCache.suburbanStationsData = suburbanStations;
+      dataCache.tramLinesData = tramLines;
+      dataCache.tramStopsData = tramStops;
       updateProgressBar(85);
       loadingText.innerText = "Loading Bus Network...";
       return fetchAndDecompressGzip(`${dataPath}BasicRoutes_pg.json.gz`);
@@ -193,6 +197,10 @@ document.addEventListener("DOMContentLoaded", () => {
         style: (feature) => ({ color: suburbanLineColors[feature.properties.LINE] || '#A9A9A9', weight: 3.5, opacity: 0.75 }),
         pane: 'suburbanPane'
       }).addTo(map);
+      tramLayer = L.geoJSON(dataCache.tramLinesData, {
+        style: (feature) => ({ color: tramColors[feature.properties.LINET] || '#c078aa', weight: 3, opacity: 0.8 }),
+        pane: 'tramPane'
+      }).addTo(map);
       metroStationsLayer = L.geoJSON(dataCache.metroStationsData, {
         pointToLayer: (feature, latlng) => L.marker(latlng, { icon: L.divIcon({ html: createMetroIcon(feature.properties.MSYM), className: 'metro-station-icon', iconSize: [24, 24], iconAnchor: [12, 12] }), pane: 'metroStationPane' }),
         onEachFeature: (feature, layer) => { layer.on('click', (e) => { L.DomEvent.stopPropagation(e); showMetroInfo(feature.properties); map.flyTo(e.latlng, 16); }); }
@@ -200,6 +208,10 @@ document.addEventListener("DOMContentLoaded", () => {
       suburbanStationsLayer = L.geoJSON(dataCache.suburbanStationsData, {
         pointToLayer: (feature, latlng) => L.marker(latlng, { icon: L.divIcon({ html: createSuburbanIcon(), className: 'suburban-station-icon', iconSize: [16, 16], iconAnchor: [8, 8] }), pane: 'suburbanStationPane' }),
         onEachFeature: (feature, layer) => { layer.on('click', (e) => { L.DomEvent.stopPropagation(e); showSuburbanInfo(feature.properties); map.flyTo(e.latlng, 16); }); }
+      });
+      tramStationsLayer = L.geoJSON(dataCache.tramStopsData, {
+        pointToLayer: (feature, latlng) => L.marker(latlng, { icon: L.divIcon({ html: createTramIcon(feature.properties.LINE_T), className: 'tram-station-icon', iconSize: [18, 18], iconAnchor: [9, 9] }), pane: 'tramStationPane' }),
+        onEachFeature: (feature, layer) => { layer.on('click', (e) => { L.DomEvent.stopPropagation(e); showTramInfo(feature.properties); map.flyTo(e.latlng, 16); }); }
       });
 
       plottedStopsLayer = L.featureGroup().addTo(map);

@@ -1,5 +1,5 @@
 const PROXY_URL = "https://oasa-proxy.panagot94.workers.dev/?url=";
-// icon creators
+
 function createMetroIcon(msym) {
   const size = 24;
   const center = size / 2;
@@ -30,7 +30,15 @@ function createSuburbanIcon() {
   return `<svg viewBox="0 0 ${size} ${size}" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.4));"><circle cx="${center}" cy="${center}" r="${radius}" fill="#fff" stroke="#333" stroke-width="1.5"/></svg>`;
 }
 
-// panel display logic
+function createTramIcon(lineT) {
+  const size = 18;
+  const center = size / 2;
+  const radius = 6;
+  const strokeWidth = 2;
+  const color = tramStopColors[lineT] || '#333';
+  return `<svg viewBox="0 0 ${size} ${size}" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.4));"><circle cx="${center}" cy="${center}" r="${radius}" fill="white" stroke="${color}" stroke-width="${strokeWidth}"/></svg>`;
+}
+
 function showMetroInfo(properties) {
   clearDemotedPanels();
   stopTimer();
@@ -45,6 +53,7 @@ function showMetroInfo(properties) {
   }
   stopInfoPanel.classList.remove("visible");
   suburbanStationPanel.classList.remove("visible");
+  tramStationPanel.classList.remove("visible");
   schedulePanel.classList.remove("visible");
 
   const iconHtml = createMetroIcon(properties.MSYM);
@@ -68,6 +77,7 @@ async function showSuburbanInfo(properties) {
   stopSuburbanTimer();
   stopInfoPanel.classList.remove("visible");
   metroStationPanel.classList.remove("visible");
+  tramStationPanel.classList.remove("visible");
   schedulePanel.classList.remove("visible");
   currentSuburbanProperties = properties;
   suburbanStationTitle.textContent = properties.NAME;
@@ -83,6 +93,37 @@ async function showSuburbanInfo(properties) {
   const contentArea = document.getElementById("suburban-station-content");
   showLoadingUI(contentArea, "Loading Live Arrivals...", true);
   await fetchAndDisplaySuburbanData();
+}
+
+function showTramInfo(properties) {
+  clearDemotedPanels();
+  stopTimer();
+  stopSuburbanTimer();
+  stopInfoPanel.classList.remove("visible");
+  metroStationPanel.classList.remove("visible");
+  suburbanStationPanel.classList.remove("visible");
+  schedulePanel.classList.remove("visible");
+  
+  if (selectedStopMarker) {
+    map.removeLayer(selectedStopMarker);
+    selectedStopMarker = null;
+  }
+  if (selectedHeadingMarker) {
+    map.removeLayer(selectedHeadingMarker);
+    selectedHeadingMarker = null;
+  }
+
+  const iconHtml = createTramIcon(properties.LINE_T);
+  tramStationTitle.innerHTML = `<div class="metro-panel-icon">${iconHtml}</div><span>${properties.GNAME}</span>`;
+  
+  const lines = properties.LINE_T.split('+');
+  const coloredLinesHtml = lines.map(line => {
+    let color = tramColors[line] || '#333';
+    return `<span style="color: ${color};">${line}</span>`;
+  }).join(' & ');
+  
+  tramStationLines.innerHTML = coloredLinesHtml;
+  tramStationPanel.classList.add("visible");
 }
 
 async function fetchAndDisplaySuburbanData() {
@@ -181,7 +222,6 @@ async function fetchAndDisplaySuburbanData() {
   }
 }
 
-// timers
 function startSuburbanTimer() {
   stopSuburbanTimer();
   if (!currentSuburbanProperties) return;
@@ -211,7 +251,6 @@ function stopSuburbanTimer() {
   suburbanRefreshContainer.classList.remove('visible');
 }
 
-// listeners
 suburbanStationClose.addEventListener('click', () => {
   suburbanStationPanel.classList.remove('visible');
   stopSuburbanTimer();
@@ -230,4 +269,8 @@ metroStationClose.addEventListener('click', () => {
   metroStationPanel.classList.remove('visible');
   stopTimer();
   stopSuburbanTimer();
+});
+
+tramStationClose.addEventListener('click', () => {
+    tramStationPanel.classList.remove('visible');
 });

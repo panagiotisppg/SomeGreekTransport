@@ -8,7 +8,6 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 }).addTo(map);
 
-// panes
 map.createPane("animatedRoutePane"); map.getPane("animatedRoutePane").style.zIndex = 610;
 map.createPane("headingPane"); map.getPane("headingPane").style.zIndex = 350;
 map.createPane("highlightedStopsPane"); map.getPane("highlightedStopsPane").style.zIndex = 620;
@@ -21,15 +20,16 @@ map.createPane("userPane"); map.getPane("userPane").style.zIndex = 700;
 map.createPane('metroPane'); map.getPane('metroPane').style.zIndex = 500;
 map.createPane("plottedArrowPane"); map.getPane("plottedArrowPane").style.zIndex = 618;
 map.createPane('suburbanPane'); map.getPane('suburbanPane').style.zIndex = 490;
+map.createPane('tramPane'); map.getPane('tramPane').style.zIndex = 492;
 map.createPane('metroStationPane'); map.getPane('metroStationPane').style.zIndex = 505;
 map.createPane('suburbanStationPane'); map.getPane('suburbanStationPane').style.zIndex = 495;
+map.createPane('tramStationPane'); map.getPane('tramStationPane').style.zIndex = 497;
 
 const myCanvasRenderer = L.canvas({ padding: 0.5 });
 const routeZoomThreshold = 14;
 const clickableStopZoomThreshold = 15;
 const labelZoomThreshold = 16.5;
 
-// layer styles
 function getStopRadius(zoom) {
   if (zoom <= 13) return 2;
   if (zoom < 14) return 3;
@@ -63,7 +63,6 @@ function createHeadingIcon(heading, displaySize = 40) {
     return L.divIcon({ className: 'heading-arrow-icon', html: iconHtml, iconSize: [displaySize, displaySize], iconAnchor: [displaySize / 2, displaySize / 2] });
 }
 
-// map updates
 function updateVisibleHeadings() {
     if (!toggleBusStops.checked || map.getZoom() < getLabelZoomThreshold()) {
         stopsHeadingLayer.clearLayers();
@@ -232,6 +231,18 @@ function updateSuburbanStationsVisibility() {
   }
 }
 
+function updateTramStationsVisibility() {
+  if (!toggleTramNetwork.checked) {
+    if (map.hasLayer(tramStationsLayer)) map.removeLayer(tramStationsLayer);
+    return;
+  }
+  if (map.getZoom() >= 14) {
+    if (!map.hasLayer(tramStationsLayer)) map.addLayer(tramStationsLayer);
+  } else {
+    if (map.hasLayer(tramStationsLayer)) map.removeLayer(tramStationsLayer);
+  }
+}
+
 function updateAllMapView() {
   updateAllLayers();
   updateStopLabels();
@@ -239,9 +250,9 @@ function updateAllMapView() {
   updateVisibleHeadings();
   updateMetroStationsVisibility();
   updateSuburbanStationsVisibility();
+  updateTramStationsVisibility();
 }
 
-// user location logic
 function animateUserMarker(marker, from, to) {
   const duration = 1000;
   let startTime = null;
@@ -339,16 +350,12 @@ locationButton.addEventListener("click", () => {
   );
 });
 
-// listeners
 layerControlBtn.addEventListener('click', (e) => {
   e.stopPropagation();
-  // Dynamic positioning logic
   if (!layerControlPanel.classList.contains('visible')) {
     manageOpenPanels('layers');
-    // Calculate position based on the button's current location
     const btnRect = layerControlBtn.getBoundingClientRect();
     layerControlPanel.style.top = `${btnRect.top}px`;
-    // Place it to the right of the button with a 10px gap
     layerControlPanel.style.left = `${btnRect.right + 10}px`;
   }
   layerControlPanel.classList.toggle('visible');
@@ -391,6 +398,17 @@ toggleSuburbanNetwork.addEventListener('change', (e) => {
   } else {
     if (map.hasLayer(suburbanLayer)) map.removeLayer(suburbanLayer);
     if (map.hasLayer(suburbanStationsLayer)) map.removeLayer(suburbanStationsLayer);
+  }
+});
+
+toggleTramNetwork.addEventListener('change', (e) => {
+  const isVisible = e.target.checked;
+  if (isVisible) {
+    if (!map.hasLayer(tramLayer)) map.addLayer(tramLayer);
+    updateTramStationsVisibility();
+  } else {
+    if (map.hasLayer(tramLayer)) map.removeLayer(tramLayer);
+    if (map.hasLayer(tramStationsLayer)) map.removeLayer(tramStationsLayer);
   }
 });
 

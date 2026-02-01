@@ -57,6 +57,7 @@ function manageOpenPanels(panelToKeep) {
 function clearDemotedPanels() {
   stopInfoPanel.classList.remove('panel-demoted');
   suburbanStationPanel.classList.remove('panel-demoted');
+  tramStationPanel.classList.remove('panel-demoted');
 }
 
 // notifications and drag logic
