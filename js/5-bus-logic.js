@@ -175,7 +175,7 @@ async function plotAnimatedRoute(routeCode, lineID, routeDescr) {
     if (routesPane) { routesPane.style.transition = "opacity 1s linear"; routesPane.style.opacity = 0; }
     const stopsPane = (map.hasLayer(stopsLayerInteractive) ? stopsLayerInteractive.getPane() : null) || (map.hasLayer(stopsLayerNotInteractive) ? stopsLayerNotInteractive.getPane() : null);
     if (stopsPane) { stopsPane.style.transition = "opacity 1s linear"; stopsPane.style.opacity = 0.3; }
-    ['metroPane', 'suburbanPane', 'metroStationPane', 'suburbanStationPane', 'headingPane'].forEach(paneName => {
+    ['metroPane', 'suburbanPane', 'tramPane', 'metroStationPane', 'suburbanStationPane', 'tramStationPane', 'headingPane'].forEach(paneName => {
       const pane = map.getPane(paneName);
       if (pane) {
         pane.style.transition = 'opacity 1s linear';
@@ -345,8 +345,8 @@ function clearRoutes(routesToDelete) {
   });
   if (remainingRoutes.length === 0) {
     const panesToRestore = [
-      map.getPane('metroPane'), map.getPane('suburbanPane'),
-      map.getPane('metroStationPane'), map.getPane('suburbanStationPane'),
+      map.getPane('metroPane'), map.getPane('suburbanPane'), map.getPane('tramPane'),
+      map.getPane('metroStationPane'), map.getPane('suburbanStationPane'), map.getPane('tramStationPane'),
       map.getPane('headingPane')
     ].filter(p => p);
     if (routesLayer && map.hasLayer(routesLayer)) panesToRestore.push(routesLayer.getPane());
@@ -530,6 +530,7 @@ async function showStopInfo(stopProperties) {
   stopSuburbanTimer();
   metroStationPanel.classList.remove("visible");
   suburbanStationPanel.classList.remove("visible");
+  tramStationPanel.classList.remove("visible"); 
   schedulePanel.classList.remove("visible");
   stopTimer();
   switchToTab("arrivals");
