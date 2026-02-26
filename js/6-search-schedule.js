@@ -16,7 +16,7 @@ async function showSchedulePanel(lineData) {
   scheduleTitle.innerHTML = `<div class="line-id-pill">${lineData.LineID}</div><span>${lineData.LineDescrEng}</span>`;
   scheduleRoutesTitle.innerHTML = `Routes of <div class="line-id-pill">${lineData.LineID}</div>:`;
 
-  const scheduleUrl = `${PROXY_URL}${encodeURIComponent(`http://telematics.oasa.gr/api/?act=getDailySchedule&line_code=${lineData.LineCode}&t=${Date.now()}`)}`;
+  const scheduleUrl = `${PROXY_URL}${encodeURIComponent(`https://telematics.oasa.gr/api/?act=getDailySchedule&line_code=${lineData.LineCode}&t=${Date.now()}`)}`;
   const routesForLineUrl = `${PROXY_URL}${encodeURIComponent(`https://telematics.oasa.gr/api/?act=getRoutesForLine&p1=${lineData.LineCode}&t=${Date.now()}`)}`;
   
   try {

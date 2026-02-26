@@ -190,7 +190,7 @@ async function plotAnimatedRoute(routeCode, lineID, routeDescr) {
   // we add the visual element in the rendering phase below
   startBusLocationTimer(routeCode, color);
 
-  const detailsUrl = `${PROXY_URL}${encodeURIComponent(`http://telematics.oasa.gr/api/?act=webGetRoutesDetailsAndStops&p1=${routeCode}&t=${Date.now()}`)}`;
+  const detailsUrl = `${PROXY_URL}${encodeURIComponent(`https://telematics.oasa.gr/api/?act=webGetRoutesDetailsAndStops&p1=${routeCode}&t=${Date.now()}`)}`;
   try {
     const response = await fetch(detailsUrl);
     const data = await response.json();
@@ -459,7 +459,7 @@ function animateBusMarker(marker, from, to, busInfo) {
 async function refreshBusLocations(routeCode) {
     const plottedRoute = plottedRoutes.find((r) => r.routeCode === routeCode);
     if (!plottedRoute) return;
-    const uniqueUrl = `http://telematics.oasa.gr/api/?act=getBusLocation&p1=${routeCode}&t=${Date.now()}`;
+    const uniqueUrl = `https://telematics.oasa.gr/api/?act=getBusLocation&p1=${routeCode}&t=${Date.now()}`;
     const busUrl = `${PROXY_URL}${encodeURIComponent(uniqueUrl)}`;
     try {
         const response = await fetch(busUrl);
@@ -598,8 +598,8 @@ async function showStopInfo(stopProperties) {
   }
 
   const stopCode = stopProperties.StopCode;
-  const routesUrl = `${PROXY_URL}${encodeURIComponent(`http://telematics.oasa.gr/api/?act=webRoutesForStop&p1=${stopCode}&t=${Date.now()}`)}`;
-  const arrivalsUrl = `${PROXY_URL}${encodeURIComponent(`http://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}&t=${Date.now()}`)}`;
+  const routesUrl = `${PROXY_URL}${encodeURIComponent(`https://telematics.oasa.gr/api/?act=webRoutesForStop&p1=${stopCode}&t=${Date.now()}`)}`;
+  const arrivalsUrl = `${PROXY_URL}${encodeURIComponent(`https://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}&t=${Date.now()}`)}`;
   showLoadingUI(linesContent, "Loading Lines...");
   try {
     const response = await fetch(routesUrl);
@@ -753,7 +753,7 @@ stopInfoRefresh.addEventListener("click", () => {
       refreshBusLocations(route.routeCode);
     });
     const stopCode = currentStopProperties.StopCode;
-    const arrivalsUrl = `${PROXY_URL}${encodeURIComponent(`http://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}&t=${Date.now()}`)}`;
+    const arrivalsUrl = `${PROXY_URL}${encodeURIComponent(`https://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}&t=${Date.now()}`)}`;
     fetchAndDisplayArrivals(arrivalsUrl);
   }
 });
