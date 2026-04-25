@@ -34,9 +34,15 @@ document.addEventListener("DOMContentLoaded", () => {
   ];
 
   const basicRouteStopsFiles = [
-    'BasicRouteStops_pg1.json', 'BasicRouteStops_pg2.json', 'BasicRouteStops_pg3.json',
-    'BasicRouteStops_pg4.json', 'BasicRouteStops_pg5.json', 'BasicRouteStops_pg6.json',
-    'BasicRouteStops_pg7.json', 'BasicRouteStops_pg8.json', 'BasicRouteStops_pg9.json',
+    'BasicRouteStops_pg1.json',
+    'BasicRouteStops_pg2.json',
+    'BasicRouteStops_pg3.json',
+    'BasicRouteStops_pg4.json',
+    'BasicRouteStops_pg5.json',
+    'BasicRouteStops_pg6.json',
+    'BasicRouteStops_pg7.json',
+    'BasicRouteStops_pg8.json',
+    'BasicRouteStops_pg9.json',
     'BasicRouteStops_pg10.json'
   ];
 
