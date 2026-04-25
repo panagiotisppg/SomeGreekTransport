@@ -34,15 +34,9 @@ document.addEventListener("DOMContentLoaded", () => {
   ];
 
   const basicRouteStopsFiles = [
-    'BasicRouteStops_pg1.json',
-    'BasicRouteStops_pg2.json',
-    'BasicRouteStops_pg3.json',
-    'BasicRouteStops_pg4.json',
-    'BasicRouteStops_pg5.json',
-    'BasicRouteStops_pg6.json',
-    'BasicRouteStops_pg7.json',
-    'BasicRouteStops_pg8.json',
-    'BasicRouteStops_pg9.json',
+    'BasicRouteStops_pg1.json', 'BasicRouteStops_pg2.json', 'BasicRouteStops_pg3.json',
+    'BasicRouteStops_pg4.json', 'BasicRouteStops_pg5.json', 'BasicRouteStops_pg6.json',
+    'BasicRouteStops_pg7.json', 'BasicRouteStops_pg8.json', 'BasicRouteStops_pg9.json',
     'BasicRouteStops_pg10.json'
   ];
 
@@ -91,12 +85,6 @@ document.addEventListener("DOMContentLoaded", () => {
       dataCache.suburbanStationsData = suburbanStations;
       dataCache.tramLinesData = tramLines;
       dataCache.tramStopsData = tramStops;
-      updateProgressBar(85);
-      loadingText.innerText = "Loading Bus Network...";
-      return fetchAndDecompressGzip(`${dataPath}BasicRoutes_pg.json.gz`);
-    })
-    .then(allRoutes => {
-      dataCache.allRoutesData = allRoutes;
       loadingText.innerText = "Processing Data...";
       updateProgressBar(95);
 
@@ -191,10 +179,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
 
-      routesLayer = L.geoJSON(dataCache.allRoutesData, {
-        renderer: myCanvasRenderer,
-        style: getRouteStyle(map.getZoom()),
-      });
       metroLayer = L.geoJSON(dataCache.metroLinesData, {
         style: (feature) => ({ color: metroLineColors[feature.properties.LINE] || '#000000', weight: 4, opacity: 0.8 }),
         pane: 'metroPane'
@@ -224,6 +208,17 @@ document.addEventListener("DOMContentLoaded", () => {
       updateAllMapView();
       hideLoader();
       updateButtonPosition();
+
+      fetchAndDecompressGzip(`${dataPath}BasicRoutes_pg.json.gz`)
+        .then(allRoutes => {
+          dataCache.allRoutesData = allRoutes;
+          routesLayer = L.geoJSON(allRoutes, {
+            renderer: myCanvasRenderer,
+            style: getRouteStyle(map.getZoom()),
+          });
+          updateAllMapView();
+        })
+        .catch(err => console.warn('Bus network background load failed:', err));
     })
     .catch((error) => {
       console.error("Error during initial data load:", error);

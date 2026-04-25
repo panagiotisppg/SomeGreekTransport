@@ -124,16 +124,16 @@ function updateAllLayers() {
   if (plottedRoutes.length === 0) {
     if (toggleBusNetwork.checked) {
         if (currentZoom >= routeZoomThreshold) {
-            if (!map.hasLayer(routesLayer)) map.addLayer(routesLayer);
-            routesLayer.setStyle(getRouteStyle(currentZoom));
+            if (routesLayer && !map.hasLayer(routesLayer)) map.addLayer(routesLayer);
+            if (routesLayer) routesLayer.setStyle(getRouteStyle(currentZoom));
         } else {
-            if (map.hasLayer(routesLayer)) map.removeLayer(routesLayer);
+            if (routesLayer && map.hasLayer(routesLayer)) map.removeLayer(routesLayer);
         }
     } else {
-        if (map.hasLayer(routesLayer)) map.removeLayer(routesLayer);
+        if (routesLayer && map.hasLayer(routesLayer)) map.removeLayer(routesLayer);
     }
   } else {
-    if (map.hasLayer(routesLayer)) map.removeLayer(routesLayer);
+    if (routesLayer && map.hasLayer(routesLayer)) map.removeLayer(routesLayer);
   }
 }
 
@@ -372,10 +372,10 @@ toggleBusNetwork.addEventListener('change', (e) => {
   const isVisible = e.target.checked;
   if (isVisible) {
     if (plottedRoutes.length === 0 && map.getZoom() >= routeZoomThreshold) {
-      if (!map.hasLayer(routesLayer)) map.addLayer(routesLayer);
+      if (routesLayer && !map.hasLayer(routesLayer)) map.addLayer(routesLayer);
     }
   } else {
-    if (map.hasLayer(routesLayer)) map.removeLayer(routesLayer);
+    if (routesLayer && map.hasLayer(routesLayer)) map.removeLayer(routesLayer);
   }
 });
 
