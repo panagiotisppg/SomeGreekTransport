@@ -40,6 +40,21 @@ function getStopRadius(zoom) {
   return 8;
 }
 
+function getStopWeight(zoom) {
+  if (zoom <= 13) return 2;
+  if (zoom < 15) return 1.8;
+  return 0.8;
+}
+
+function getStopStrokeStyle(zoom) {
+  const interactive = zoom >= clickableStopZoomThreshold;
+  return {
+    color:       '#fff',
+    weight:      getStopWeight(zoom),
+    fillOpacity: interactive ? 1 : 0.85,
+  };
+}
+
 function getRouteStyle(zoom) {
   let opacity = 0;
   if (zoom > 8) {
@@ -64,7 +79,7 @@ function createHeadingIcon(heading, displaySize = 40) {
 }
 
 function updateVisibleHeadings() {
-    if (!toggleBusStops.checked || map.getZoom() < getLabelZoomThreshold()) {
+    if (!toggleBusStops.checked || map.getZoom() < clickableStopZoomThreshold) {
         stopsHeadingLayer.clearLayers();
         return;
     }
@@ -97,21 +112,18 @@ function updateAllLayers() {
   const currentRadius = getStopRadius(currentZoom);
 
   if (toggleBusStops.checked) {
+      const strokeStyle = getStopStrokeStyle(currentZoom);
       if (currentZoom >= clickableStopZoomThreshold) {
         if (map.hasLayer(stopsLayerNotInteractive)) map.removeLayer(stopsLayerNotInteractive);
         if (!map.hasLayer(stopsLayerInteractive)) map.addLayer(stopsLayerInteractive);
-        stopsLayerInteractive.eachLayer((layer) => layer.setRadius(currentRadius));
-        if (typeof stopsHeadingLayer !== 'undefined') {
-             if (!map.hasLayer(stopsHeadingLayer)) map.addLayer(stopsHeadingLayer);
-        }
+        stopsLayerInteractive.eachLayer((layer) => layer.setStyle({ radius: currentRadius, ...strokeStyle }));
       } else {
         if (map.hasLayer(stopsLayerInteractive)) map.removeLayer(stopsLayerInteractive);
-        if (typeof stopsHeadingLayer !== 'undefined' && map.hasLayer(stopsHeadingLayer)) {
-            map.removeLayer(stopsHeadingLayer);
-            stopsHeadingLayer.clearLayers();
-        }
         if (!map.hasLayer(stopsLayerNotInteractive)) map.addLayer(stopsLayerNotInteractive);
-        stopsLayerNotInteractive.setStyle({ radius: currentRadius });
+        stopsLayerNotInteractive.setStyle({ radius: currentRadius, ...strokeStyle });
+      }
+      if (typeof stopsHeadingLayer !== 'undefined') {
+        if (!map.hasLayer(stopsHeadingLayer)) map.addLayer(stopsHeadingLayer);
       }
   } else {
       if (map.hasLayer(stopsLayerInteractive)) map.removeLayer(stopsLayerInteractive);

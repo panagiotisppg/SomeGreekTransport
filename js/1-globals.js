@@ -156,7 +156,7 @@ const highlightedStopStyles = {
 };
 
 const defaultRouteStyle = { color: "#007BFF", weight: 2.5, opacity: 0, interactive: false };
-const baseStopStyle = { fillColor: "#003366", color: "#fff", weight: 1, fillOpacity: 0.85 };
+const baseStopStyle = { fillColor: "#003366", color: "#fff", weight: 1.5, fillOpacity: 0.85 };
 const fadedStopLayerStyle = { ...baseStopStyle, fillColor: "#001a33", fillOpacity: 0.6 };
 
 const greeklishMap = {
@@ -166,5 +166,5 @@ const greeklishMap = {
 };
 
 const plotRouteIconSvg = `<svg class="plot-route-svg" viewBox="0 0 24 24"><g transform="translate(5, 22)"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M 1 0 L 1 -13 C 1 -18 7 -18 7 -13 L 7 -7 C 7 -2 13 -2 13 -7 L 13 -20"></path><circle fill="currentColor" cx="1" cy="0" r="2.5"></circle><circle fill="currentColor" cx="13" cy="-20" r="2.5"></circle></g></svg>`;
-const accessibilityIconSvg = `<svg class="access-icon-svg" viewBox="0 0 24 24"><g fill="none" stroke="#003366" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><rect x="6.5" y="6" width="8" height="8" rx="1"/><circle cx="8.5" cy="15" r="1"/><circle cx="12.5" cy="15" r="1"/><path d="M 22 14 H 16 V 16"/></g></svg>`;
-const smartStopIconSvg = `<svg class="access-icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="#003366" stroke-width="1.5"/><g fill="#003366"><circle cx="15.5" cy="7.8" r="1.5"/><rect x="7" y="9" width="10" height="5" rx="1"/><rect x="14.9" y="14" width="2" height="4"/></g></svg>`;
+const accessibilityIconSvg = `<svg class="access-icon-svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><rect x="6.5" y="6" width="8" height="8" rx="1"/><circle cx="8.5" cy="15" r="1"/><circle cx="12.5" cy="15" r="1"/><path d="M 22 14 H 16 V 16"/></g></svg>`;
+const smartStopIconSvg = `<svg class="access-icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/><g fill="currentColor"><circle cx="15.5" cy="7.8" r="1.5"/><rect x="7" y="9" width="10" height="5" rx="1"/><rect x="14.9" y="14" width="2" height="4"/></g></svg>`;

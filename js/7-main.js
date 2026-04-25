@@ -144,11 +144,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       stopsLayerNotInteractive = L.geoJSON(mergedStopsGeoJSON, {
         renderer: myCanvasRenderer,
-        pointToLayer: (f, l) => L.circleMarker(l, { ...initialStyle, interactive: false }),
+        pointToLayer: (_f, l) => L.circleMarker(l, { ...initialStyle, interactive: false }),
       });
 
       stopsLayerInteractive = L.geoJSON(mergedStopsGeoJSON, {
-        pointToLayer: (feature, latlng) => L.circleMarker(latlng, { ...initialStyle, className: "interactive-stop-dot" }),
+        pointToLayer: (_feature, latlng) => L.circleMarker(latlng, { ...initialStyle, className: "interactive-stop-dot" }),
         onEachFeature: (feature, layer) => {
           layer.bindTooltip(feature.properties.stop_descr, { permanent: false, direction: "bottom", offset: [0, 8], className: "stop-label" });
           layer.on('mouseover', function () { this.openTooltip(); });
@@ -196,7 +196,7 @@ document.addEventListener("DOMContentLoaded", () => {
         onEachFeature: (feature, layer) => { layer.on('click', (e) => { L.DomEvent.stopPropagation(e); showMetroInfo(feature.properties); map.flyTo(e.latlng, 16); }); }
       });
       suburbanStationsLayer = L.geoJSON(dataCache.suburbanStationsData, {
-        pointToLayer: (feature, latlng) => L.marker(latlng, { icon: L.divIcon({ html: createSuburbanIcon(), className: 'suburban-station-icon', iconSize: [16, 16], iconAnchor: [8, 8] }), pane: 'suburbanStationPane' }),
+        pointToLayer: (_feature, latlng) => L.marker(latlng, { icon: L.divIcon({ html: createSuburbanIcon(), className: 'suburban-station-icon', iconSize: [16, 16], iconAnchor: [8, 8] }), pane: 'suburbanStationPane' }),
         onEachFeature: (feature, layer) => { layer.on('click', (e) => { L.DomEvent.stopPropagation(e); showSuburbanInfo(feature.properties); map.flyTo(e.latlng, 16); }); }
       });
       tramStationsLayer = L.geoJSON(dataCache.tramStopsData, {
@@ -208,6 +208,19 @@ document.addEventListener("DOMContentLoaded", () => {
       updateAllMapView();
       hideLoader();
       updateButtonPosition();
+
+      // Keep stop colours in sync with the active theme
+      const stopFills = { light: '#003366', dark: '#4d94ff' };
+      function applyStopTheme() {
+        const fill = stopFills[document.documentElement.getAttribute('data-theme')] || stopFills.light;
+        const zoom = map.getZoom();
+        const style = { fillColor: fill, ...getStopStrokeStyle(zoom) };
+        if (stopsLayerInteractive)    stopsLayerInteractive.setStyle(style);
+        if (stopsLayerNotInteractive) stopsLayerNotInteractive.setStyle(style);
+      }
+      new MutationObserver(applyStopTheme)
+        .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+      applyStopTheme();
 
       fetchAndDecompressGzip(`${dataPath}BasicRoutes_pg.json.gz`)
         .then(allRoutes => {
