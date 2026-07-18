@@ -221,16 +221,21 @@ document.addEventListener("DOMContentLoaded", () => {
         pane: 'tramPane'
       }).addTo(map);
       metroStationsLayer = L.geoJSON(dataCache.metroStationsData, {
-        pointToLayer: (feature, latlng) => L.marker(latlng, { icon: L.divIcon({ html: createMetroIcon(feature.properties.MSYM), className: 'metro-station-icon', iconSize: [24, 24], iconAnchor: [12, 12] }), pane: 'metroStationPane' }),
+        pointToLayer: (feature, latlng) => {
+          const size = getMetroIconSize(map.getZoom());
+          const icon = L.divIcon({ html: createMetroIcon(feature.properties.MSYM), className: 'metro-station-icon', iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
+          return L.marker(latlng, { icon: icon, pane: 'metroStationPane' });
+        },
         onEachFeature: (feature, layer) => { layer.on('click', (e) => { L.DomEvent.stopPropagation(e); showMetroInfo(feature.properties); map.flyTo(e.latlng, 16); }); }
       });
       suburbanStationsLayer = L.geoJSON(suburbanStopsGeoJSON, {
         pointToLayer: (feature, latlng) => {
-          const icon = L.divIcon({ html: createSuburbanIcon(feature.properties.groups), className: 'suburban-station-icon', iconSize: [13, 13], iconAnchor: [6.5, 6.5] });
+          const size = getSuburbanIconSize(map.getZoom());
+          const icon = L.divIcon({ html: createSuburbanIcon(feature.properties.groups), className: 'suburban-station-icon', iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
           return L.marker(latlng, { icon: icon, pane: 'suburbanStationPane' });
         },
         onEachFeature: (feature, layer) => {
-          layer.bindTooltip(`<b>${feature.properties.name}</b><br>${feature.properties.groups.join(' · ')}`, { className: 'train-tooltip', direction: 'top', offset: [0, -6] });
+          layer.bindTooltip(feature.properties.name, { className: 'train-station-label', direction: 'bottom', offset: [0, 6] });
           layer.on('click', (e) => {
             L.DomEvent.stopPropagation(e);
             showSuburbanInfo(feature.properties);

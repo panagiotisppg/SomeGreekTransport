@@ -36,6 +36,7 @@ const busStopsCanvasRenderer = L.canvas({ pane: 'busStopsPane', padding: 0.5 });
 const routeZoomThreshold = 14;
 const clickableStopZoomThreshold = 15;
 const labelZoomThreshold = 16.5;
+const trainStationLabelZoomThreshold = 15;
 
 function getStopRadius(zoom) {
   if (zoom <= 13) return 2;
@@ -47,10 +48,14 @@ function getStopRadius(zoom) {
   return 8;
 }
 
+// scales with the dot radius itself instead of against it - the old
+// values got thicker as the dots got smaller so at the most zoomed out
+// level the white outline was as wide as the whole dot and drowned it out
 function getStopWeight(zoom) {
-  if (zoom <= 13) return 2;
-  if (zoom < 15) return 1.8;
-  return 0.8;
+  if (zoom <= 13) return 0.5;
+  if (zoom < 15) return 0.7;
+  if (zoom < 17) return 1;
+  return 1.2;
 }
 
 function getStopStrokeStyle(zoom) {
@@ -262,6 +267,69 @@ function updateTramStationsVisibility() {
   }
 }
 
+// only the suburban/regional rail stations get labels not metro or tram
+// same idea as updatestoplabels but far fewer of them so a plain loop is
+// fine here no chunking needed
+function updateTrainStationLabels() {
+  const showLabels = map.getZoom() >= trainStationLabelZoomThreshold;
+  if (!suburbanStationsLayer || !map.hasLayer(suburbanStationsLayer)) return;
+  suburbanStationsLayer.eachLayer((layer) => {
+    const tooltip = layer.getTooltip();
+    if (!tooltip) return;
+    tooltip.options.permanent = showLabels;
+    if (showLabels) layer.openTooltip(); else layer.closeTooltip();
+  });
+}
+
+function getMetroIconSize(zoom) {
+  if (zoom < 13) return 14;
+  if (zoom < 15) return 16;
+  if (zoom < 17) return 19;
+  return 22;
+}
+
+function getSuburbanIconSize(zoom) {
+  if (zoom < 13) return 14;
+  if (zoom < 15) return 18;
+  if (zoom < 17) return 23;
+  return 27;
+}
+
+// markers dont resize themselves like the circlemarker based bus stops do
+// so this rebuilds each icon at the right size for the current zoom only
+// when the size actually changes rather than on every single pan
+let lastMetroIconSize = null;
+let lastSuburbanIconSize = null;
+function updateTrainStationIconSizes() {
+  const zoom = map.getZoom();
+
+  const metroSize = getMetroIconSize(zoom);
+  if (metroStationsLayer && metroSize !== lastMetroIconSize) {
+    lastMetroIconSize = metroSize;
+    metroStationsLayer.eachLayer((layer) => {
+      layer.setIcon(L.divIcon({
+        html: createMetroIcon(layer.feature.properties.MSYM),
+        className: 'metro-station-icon',
+        iconSize: [metroSize, metroSize],
+        iconAnchor: [metroSize / 2, metroSize / 2],
+      }));
+    });
+  }
+
+  const suburbanSize = getSuburbanIconSize(zoom);
+  if (suburbanStationsLayer && suburbanSize !== lastSuburbanIconSize) {
+    lastSuburbanIconSize = suburbanSize;
+    suburbanStationsLayer.eachLayer((layer) => {
+      layer.setIcon(L.divIcon({
+        html: createSuburbanIcon(layer.feature.properties.groups),
+        className: 'suburban-station-icon',
+        iconSize: [suburbanSize, suburbanSize],
+        iconAnchor: [suburbanSize / 2, suburbanSize / 2],
+      }));
+    });
+  }
+}
+
 function updateAllMapView() {
   updateAllLayers();
   updateStopLabels();
@@ -270,6 +338,8 @@ function updateAllMapView() {
   updateMetroStationsVisibility();
   updateSuburbanStationsVisibility();
   updateTramStationsVisibility();
+  updateTrainStationLabels();
+  updateTrainStationIconSizes();
 }
 
 function animateUserMarker(marker, from, to) {

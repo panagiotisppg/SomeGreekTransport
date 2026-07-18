@@ -1084,7 +1084,7 @@ input[type="text"] {
     padding: 1px 6px;
     border-radius: var(--r-sm);
     color: #fff;
-    text-shadow: -0.5px -0.5px 0 #000, 0.5px -0.5px 0 #000, -0.5px 0.5px 0 #000, 0.5px 0.5px 0 #000;
+    text-shadow: -0.75px -0.75px 0 #000, 0.75px -0.75px 0 #000, -0.75px 0.75px 0 #000, 0.75px 0.75px 0 #000;
     line-height: 1.5;
 }
 
@@ -2355,22 +2355,30 @@ input:checked + .slider:before { transform: translateX(20px); }
     border: none !important;
 }
 
-/* ─── train / suburban stop tooltip ───────────────────────────────────────── */
-.train-tooltip {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-md);
-    color: var(--text-1);
+/* ─── train station labels ────────────────────────────────────────────────── */
+/* fixed white text with a thin black outline regardless of site theme
+   since these sit directly on the map like the bus stop labels do just
+   always the same two colors instead of following light/dark like
+   stop-label does */
+.train-station-label {
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+    color: #fff;
+    font-weight: 600;
+    font-size: 10px;
     font-family: var(--font);
-    font-size: 12px;
-    line-height: 1.4;
-    padding: 6px 10px;
-    border-radius: var(--r-sm);
-    white-space: nowrap;
+    padding: 0;
+    margin-top: 5px;
+    text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
 }
 
-.leaflet-tooltip-top.train-tooltip::before {
-    border-top-color: var(--border);
+.train-station-label::before,
+.train-station-label::after,
+.leaflet-tooltip-bottom.train-station-label::before,
+.leaflet-tooltip-bottom.train-station-label::after {
+    display: none !important;
+    border: none !important;
 }
 
 /* ─── bus popup map ─────────────────────────────────────────────────────── */
