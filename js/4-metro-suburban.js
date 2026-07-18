@@ -114,9 +114,13 @@ const trainStatusLabels = {
   cancelled: 'Cancelled',
 };
 
-const passengerServiceTypes = new Set(['Suburban', 'InterCity', 'InterCity Express', 'ICE']);
+// blocklist instead of an allowlist - checked live across the whole
+// network and the only real values are suburban intercity regional and
+// freight - an allowlist missed regional shown as ic regional since ic is
+// the line group and would keep missing anything else not yet seen
+const nonPassengerServiceTypes = new Set(['Freight']);
 function isPassengerService(serviceType) {
-  return passengerServiceTypes.has(serviceType);
+  return !!serviceType && !nonPassengerServiceTypes.has(serviceType);
 }
 
 function getServiceTypeColor(serviceType) {
