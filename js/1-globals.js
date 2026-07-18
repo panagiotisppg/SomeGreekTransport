@@ -25,11 +25,19 @@ const metroStationClose = document.getElementById("metro-station-close");
 const suburbanStationPanel = document.getElementById("suburban-station-panel");
 const suburbanStationTitle = document.getElementById("suburban-station-title");
 const suburbanStationClose = document.getElementById("suburban-station-close");
+const suburbanStationLines = document.getElementById("suburban-station-lines");
 const suburbanStationRefresh = document.getElementById("suburban-station-refresh");
+const suburbanRefreshContainer = document.getElementById("suburban-refresh-container");
+const suburbanTimerProgress = document.getElementById("suburban-timer-progress");
+const suburbanTimerText = document.getElementById("suburban-timer-text");
 const tramStationPanel = document.getElementById("tram-station-panel");
 const tramStationTitle = document.getElementById("tram-station-title");
 const tramStationLines = document.getElementById("tram-station-lines");
 const tramStationClose = document.getElementById("tram-station-close");
+const liveTrainPanel = document.getElementById("live-train-panel");
+const liveTrainContent = document.getElementById("live-train-content");
+const liveTrainClose = document.getElementById("live-train-close");
+const liveTrainHeaderTitle = document.getElementById("live-train-header-title");
 const layerControlBtn = document.getElementById('layer-control-button');
 const layerControlPanel = document.getElementById('layer-control-panel');
 const toggleZoomOnRoute = document.getElementById('toggle-zoom-on-route'); 
@@ -38,9 +46,6 @@ const toggleBusNetwork = document.getElementById('toggle-bus-network');
 const toggleMetroNetwork = document.getElementById('toggle-metro-network');
 const toggleTramNetwork = document.getElementById('toggle-tram-network');
 const toggleSuburbanNetwork = document.getElementById('toggle-suburban-network');
-const suburbanRefreshContainer = document.getElementById("suburban-refresh-container");
-const suburbanTimerProgress = document.getElementById("suburban-timer-progress");
-const suburbanTimerText = document.getElementById("suburban-timer-text");
 const tabArrivals = document.getElementById("tab-arrivals");
 const tabLines = document.getElementById("tab-lines");
 const arrivalsContent = document.getElementById("stop-info-arrivals");
@@ -71,9 +76,15 @@ if (plotNotification) {
     plotNotification.style.cursor = "grab";
 }
 
-let suburbanRefreshIntervalId = null;
 let currentSuburbanProperties = null;
-const suburbanRefreshDuration = 90;
+let currentSuburbanTrainEvents = [];
+let suburbanShowAllTrains = false;
+let suburbanScheduleCache = new Map();
+let liveTrainScheduleIdSet = new Set();
+let liveTrainMarkersByScheduleId = new Map();
+let liveTrainLatestPositions = new Map();
+let suburbanRefreshIntervalId = null;
+const suburbanRefreshDuration = 60;
 let userLocationWatcher = null;
 let isTrackingUser = false;
 let currentStopProperties = null;
@@ -101,23 +112,8 @@ let metroLayer, metroStationsLayer, suburbanLayer, suburbanStationsLayer, tramLa
 let isUpdatingHeadings = false;
 let notificationTimeout = null;
 
-const suburbanStationCodes = {
-  "ΑΓΙΟΣ ΣΤΕΦΑΝΟΣ": 83, "ΔΕΚΕΛΕΙΑ": 149, "ΑΦΙΔΝΕΣ": 89, "ΣΦΕΝΔΑΛΗ": 555,
-  "ΑΥΛΩΝΑΣ": 87, "ΑΓΙΟΣ ΘΩΜΑΣ": 681, "ΟΙΝΟΦΥΤΑ": 412, "ΟΙΝΟΗ": 11,
-  "ΔΗΛΕΣΙ": 554, "ΑΓΙΟΣ ΓΕΩΡΓΙΟΣ": 605, "ΚΑΛΟΧΩΡΙ-ΠΑΝΤΕΙΧΙ": 228, "ΑΥΛΙΔΑ": 86,
-  "ΧΑΛΚΙΔΑ": 597, "ΑΣΠΡΟΠΥΡΓΟΣ": 437, "ΠΛΑΚΕΝΤΙΑ": 17, "ΠΑΛΛΗΝΗ": 14,
-  "ΚΑΝΤΖΑ": 13, "ΚΟΡΩΠΙ": 458, "ΑΕΡΟΔΡΟΜΙΟ": 28, "ΚΗΦΙΣΙΑΣ": 15,
-  "ΝΕΡΑΤΖΙΩΤΙΣΣΑ": 18, "ΗΡΑΚΛΕΙΟ": 16, "ΑΝΩ ΛΙΟΣΙΑ": 19, "ΜΑΓΟΥΛΑ": 466,
-  "ΠΕΝΤΕΛΗΣ": 481, "ΑΓ.ΑΝΑΡΓΥΡΟΙ": 428, "ΜΕΤΑΜΟΡΦΩΣΗ": 21, "ΠΕΙΡΑΙΑΣ": 2,
-  "ΛΕΥΚΑ": 462, "ΡΕΝΤΗΣ": 422, "ΡΟΥΦ": 24, "ΛΑΡΙΣΗΣ": 1,
-  "ΤΑΥΡΟΣ": 25, "ΖΕΦΥΡΙ": 194, "Ν.ΠΕΡΑΜΟΣ": 469, "ΑΧΑΡΝΕΣ": 91,
-  "ΣΚΑ-ΑΧΑΡΝΑΙ": 27, "ΣΙΔΗΡ/ΚΟ ΚΕΝΤΡΟ ΑΧΑΡΝΩΝ": 27, "ΚΑΤΩ ΑΧΑΡΝΑΙ (ΛΥΚΟΤΡΥΠΑ)": 253,
-  "ΠΥΡΓΟΣ ΒΑΣΙΛΙΣΣΗΣ": 494
-};
-
-const suburbanLineColors = {
-  'A_X': '#FFC107', 'P1': '#9C27B0', 'P2': '#673AB7'
-};
+let suburbanGroupColors = new Map();
+let suburbanStopGroupsByGovId = new Map();
 
 const metroColors = {
   green: '#1f8136ff', red: '#b80600ff', blue: '#004c9eff'

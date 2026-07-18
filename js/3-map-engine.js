@@ -21,11 +21,18 @@ map.createPane('metroPane'); map.getPane('metroPane').style.zIndex = 500;
 map.createPane("plottedArrowPane"); map.getPane("plottedArrowPane").style.zIndex = 618;
 map.createPane('suburbanPane'); map.getPane('suburbanPane').style.zIndex = 490;
 map.createPane('tramPane'); map.getPane('tramPane').style.zIndex = 492;
-map.createPane('metroStationPane'); map.getPane('metroStationPane').style.zIndex = 505;
-map.createPane('suburbanStationPane'); map.getPane('suburbanStationPane').style.zIndex = 495;
-map.createPane('tramStationPane'); map.getPane('tramStationPane').style.zIndex = 497;
+// stacking bottom to top is train tracks then bus stops then train stations and live trains
+map.createPane('busStopsPane'); map.getPane('busStopsPane').style.zIndex = 550;
+map.createPane('suburbanStationPane'); map.getPane('suburbanStationPane').style.zIndex = 560;
+map.createPane('tramStationPane'); map.getPane('tramStationPane').style.zIndex = 561;
+map.createPane('metroStationPane'); map.getPane('metroStationPane').style.zIndex = 562;
+map.createPane('trainLivePane'); map.getPane('trainLivePane').style.zIndex = 563;
 
 const myCanvasRenderer = L.canvas({ padding: 0.5 });
+// bus stops get their own renderers bound to busstopspane so they sit above the train tracks
+// without touching the shared default pane that the bus route background still uses
+const busStopsSvgRenderer = L.svg({ pane: 'busStopsPane' });
+const busStopsCanvasRenderer = L.canvas({ pane: 'busStopsPane', padding: 0.5 });
 const routeZoomThreshold = 14;
 const clickableStopZoomThreshold = 15;
 const labelZoomThreshold = 16.5;

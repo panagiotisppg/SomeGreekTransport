@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* ─── Design tokens: light ─────────────────────────────────────────────────── */
+/* ─── design tokens light ─────────────────────────────────────────────────── */
 :root {
     --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
@@ -55,7 +55,7 @@
     --stop-label-color: #1e3a5f;
 }
 
-/* ─── Design tokens: dark ──────────────────────────────────────────────────── */
+/* ─── design tokens dark ──────────────────────────────────────────────────── */
 [data-theme="dark"] {
     --surface:       rgba(15, 23, 42, 0.93);
     --surface-hi:    rgba(30, 41, 59, 0.97);
@@ -100,9 +100,18 @@
     --stop-label-color: #93c5fd;
 }
 
-/* ─── Base ─────────────────────────────────────────────────────────────────── */
+/* ─── base ─────────────────────────────────────────────────────────────────── */
 html, body {
     height: 100%;
+    /* 100% resolves to the full page height ignoring mobile safari/chromes
+       own bottom toolbar so bottom:0 sheets end up anchored behind it
+       dvh and svh are a better guess but still css only - --app-vh is set
+       in index.html from window visualviewport the browsers own live
+       answer for whats actually visible right now and it wins wherever
+       its available with these as just its fallback chain before it runs */
+    height: 100dvh;
+    height: 100svh;
+    height: var(--app-vh, 100svh);
     width: 100%;
     margin: 0;
     position: relative;
@@ -141,7 +150,7 @@ input[type="text"] {
     touch-action: manipulation;
 }
 
-/* ─── Map ──────────────────────────────────────────────────────────────────── */
+/* ─── map ──────────────────────────────────────────────────────────────────── */
 #map {
     height: 100%;
     width: 100%;
@@ -149,12 +158,20 @@ input[type="text"] {
     outline: none;
 }
 
-/* Dark map tiles via invert trick */
+/* leaflet sets overflow hidden on the map container which clips any popup
+   that extends past its edge instead of just repositioning it
+   popups have their own pane on top so letting this overflow doesnt
+   affect tile rendering and keeps popups fully visible near screen edges */
+#map.leaflet-container {
+    overflow: visible;
+}
+
+/* dark map tiles via invert trick */
 [data-theme="dark"] .leaflet-tile-pane {
     filter: invert(1) hue-rotate(180deg) brightness(0.86) contrast(0.88) saturate(0.75);
 }
 
-/* Leaflet UI overrides for dark mode */
+/* leaflet ui overrides for dark mode */
 [data-theme="dark"] .leaflet-bar a {
     background-color: var(--btn-bg);
     color: var(--text-1);
@@ -164,7 +181,7 @@ input[type="text"] {
     background-color: var(--surface-hover);
 }
 
-/* ─── Loading overlay ─────────────────────────────────────────────────────── */
+/* ─── loading overlay ─────────────────────────────────────────────────────── */
 #loading-overlay {
     position: fixed;
     inset: 0;
@@ -239,7 +256,7 @@ input[type="text"] {
     transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* ─── Search container ────────────────────────────────────────────────────── */
+/* ─── search container ────────────────────────────────────────────────────── */
 #search-container {
     position: absolute;
     top: 12px;
@@ -280,7 +297,7 @@ input[type="text"] {
     box-shadow: var(--shadow-md), 0 0 0 3px var(--accent-soft);
 }
 
-/* Lines / Stops toggle */
+/* lines / stops toggle */
 .toggle-switch {
     position: relative;
     display: flex;
@@ -330,7 +347,7 @@ input[type="text"] {
 
 #search-type-stops:checked ~ .toggle-slider { transform: translateX(100%); }
 
-/* Search results dropdown */
+/* search results dropdown */
 #search-results-container {
     position: absolute;
     top: 52px;
@@ -413,12 +430,13 @@ input[type="text"] {
 
 .search-result-icon { margin-right: 10px; }
 
-/* ─── Shared panel styles ──────────────────────────────────────────────────── */
+/* ─── shared panel styles ──────────────────────────────────────────────────── */
 #stop-info-panel,
 #schedule-panel,
 #metro-station-panel,
 #suburban-station-panel,
-#tram-station-panel {
+#tram-station-panel,
+#live-train-panel {
     background: var(--surface);
     backdrop-filter: var(--blur);
     -webkit-backdrop-filter: var(--blur);
@@ -432,7 +450,7 @@ input[type="text"] {
                 opacity  0.38s ease;
 }
 
-/* ─── Stop info panel ─────────────────────────────────────────────────────── */
+/* ─── stop info panel ─────────────────────────────────────────────────────── */
 #stop-info-panel {
     top: 68px;
     right: 12px;
@@ -520,6 +538,7 @@ input[type="text"] {
     justify-content: center;
     border-radius: 50%;
     transition: background 0.2s;
+    flex-shrink: 0;
 }
 
 #stop-info-refresh:hover,
@@ -540,7 +559,7 @@ input[type="text"] {
     transform: rotate(-180deg);
 }
 
-/* Tab switcher */
+/* tab switcher */
 #tab-switcher {
     display: flex;
     background: var(--surface-row);
@@ -603,7 +622,7 @@ input[type="text"] {
     padding: 4px 0;
 }
 
-/* Arrival rows */
+/* arrival rows */
 .arrival-row {
     display: flex;
     align-items: center;
@@ -664,7 +683,7 @@ input[type="text"] {
     color: var(--text-1);
 }
 
-/* Line rows */
+/* line rows */
 .line-row {
     display: flex;
     align-items: center;
@@ -704,8 +723,8 @@ input[type="text"] {
     margin: 6px 0;
 }
 
-/* Auto-refresh timer */
-#auto-refresh-container {
+/* auto refresh timer */
+#auto-refresh-container, #suburban-refresh-container {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -714,7 +733,7 @@ input[type="text"] {
     flex-shrink: 0;
 }
 
-#auto-refresh-container.visible { opacity: 1; }
+#auto-refresh-container.visible, #suburban-refresh-container.visible { opacity: 1; }
 
 .auto-refresh-text {
     font-size: 11px;
@@ -754,7 +773,7 @@ input[type="text"] {
     color: var(--text-2);
 }
 
-/* Empty / loading states */
+/* empty / loading states */
 .no-arrivals-container {
     display: flex;
     flex-direction: column;
@@ -789,7 +808,7 @@ input[type="text"] {
 .loader-container.fading-out { opacity: 0; }
 .loader-text { font-size: 13px; color: var(--text-2); flex-shrink: 0; }
 
-/* ─── Schedule panel ──────────────────────────────────────────────────────── */
+/* ─── schedule panel ──────────────────────────────────────────────────────── */
 #schedule-panel {
     top: 68px;
     left: 12px;
@@ -936,7 +955,7 @@ input[type="text"] {
 
 .plot-route-button:hover { background-color: var(--success-2); }
 
-/* ─── Metro station panel ─────────────────────────────────────────────────── */
+/* ─── metro station panel ─────────────────────────────────────────────────── */
 #metro-station-panel {
     top: 68px;
     right: 12px;
@@ -1009,11 +1028,11 @@ input[type="text"] {
 
 .metro-station-icon, .suburban-station-icon { cursor: pointer; }
 
-/* ─── Suburban station panel ──────────────────────────────────────────────── */
+/* ─── suburban station panel ──────────────────────────────────────────────── */
 #suburban-station-panel {
     top: 68px;
     right: 12px;
-    width: 700px;
+    width: 380px;
     max-width: calc(95% - 24px);
     transform: translateX(calc(100% + 16px));
     opacity: 0;
@@ -1034,12 +1053,39 @@ input[type="text"] {
     border-bottom: 1px solid var(--sep);
 }
 
+#suburban-station-title-wrap {
+    flex-grow: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
 #suburban-station-title {
     font-size: 15px;
     font-weight: 600;
     color: var(--text-1);
     margin: 0;
-    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#suburban-station-lines {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.suburban-line-pill {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 1px 6px;
+    border-radius: var(--r-sm);
+    color: #fff;
+    text-shadow: -0.5px -0.5px 0 #000, 0.5px -0.5px 0 #000, -0.5px 0.5px 0 #000, 0.5px 0.5px 0 #000;
+    line-height: 1.5;
 }
 
 #suburban-station-close {
@@ -1052,22 +1098,434 @@ input[type="text"] {
 
 #suburban-station-close:hover { color: var(--text-1); }
 
-#suburban-refresh-container {
-    display: none;
-    align-items: center;
-    gap: 8px;
+#suburban-train-filter {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 14px 0;
+}
+
+.icon-toggle-switch {
+    position: relative;
+    display: flex;
+    background: var(--surface-row);
+    border: 1px solid var(--sep);
+    border-radius: var(--r-full);
+    overflow: hidden;
     flex-shrink: 0;
 }
 
-#suburban-refresh-container.visible { display: flex; }
-
-#suburban-station-content {
-    max-height: none;
-    overflow-y: visible;
-    padding: 0;
+.icon-toggle-switch label {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 22px;
+    color: var(--text-3);
+    cursor: pointer;
+    transition: color 0.25s ease;
 }
 
-/* ─── Tram station panel ──────────────────────────────────────────────────── */
+.icon-toggle-switch label svg { width: 13px; height: 13px; }
+
+.icon-toggle-switch input:checked + label { color: #fff; }
+
+.icon-toggle-switch input {
+    display: none !important;
+    appearance: none;
+    -webkit-appearance: none;
+    width: 0; height: 0;
+    opacity: 0;
+    position: absolute;
+}
+
+.icon-toggle-slider {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    height: calc(100% - 4px);
+    width: calc(50% - 2px);
+    background: var(--accent);
+    border-radius: var(--r-full);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#suburban-filter-all:checked ~ .icon-toggle-slider { transform: translateX(100%); }
+
+#suburban-station-content { padding: 8px; max-height: 45dvh; overflow-y: auto; }
+
+.train-stop-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.train-row {
+    background: var(--surface-row);
+    border: 1px solid var(--sep);
+    border-radius: var(--r-md);
+    padding: 6px 10px;
+    transition: opacity 0.2s ease, filter 0.2s ease, max-height 0.3s ease,
+                transform 0.25s ease, margin 0.3s ease, padding 0.3s ease, border-width 0.3s ease;
+}
+
+.train-row.is-already-passed {
+    opacity: 0.5;
+    filter: grayscale(0.7);
+}
+
+.train-row.row-fade-in {
+    opacity: 0;
+    transform: translateY(-6px);
+}
+
+.train-row.row-fade-out {
+    opacity: 0;
+    transform: scale(0.96);
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+}
+
+.train-row-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 3px;
+}
+
+.train-number-pill {
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 7px;
+    border-radius: var(--r-full);
+    box-shadow: var(--shadow-xs);
+}
+
+.train-service-type {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.train-route {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-1);
+    margin-bottom: 4px;
+}
+
+.train-route-arrow { width: 12px; height: 12px; color: var(--text-3); flex-shrink: 0; }
+
+.train-route.is-origin .train-route-from,
+.train-route.is-terminus .train-route-to {
+    color: var(--text-3);
+    font-weight: 500;
+    font-style: italic;
+}
+
+.train-route-from, .train-route-to {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.train-times {
+    display: flex;
+    gap: 6px;
+}
+
+.train-time-block {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 4px 6px;
+    background: var(--surface-hi);
+    border-radius: var(--r-sm);
+}
+
+.train-time-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.train-time-value {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-1);
+}
+
+.train-time-scheduled {
+    text-decoration: line-through;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-3);
+}
+
+.train-time-actual { color: var(--text-1); }
+
+.train-delay-chip {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: var(--r-full);
+    color: #fff;
+    min-width: 30px;
+    box-sizing: border-box;
+    text-align: center;
+    display: inline-block;
+}
+
+.train-delay-chip.late { background: var(--warning); }
+.train-delay-chip.early { background: var(--accent-2); }
+
+/* reserves the same width as a real chip even with no delay so both time
+   blocks stay evenly aligned instead of one looking wider than the other */
+.train-delay-chip.placeholder { background: transparent; visibility: hidden; }
+
+.train-time-status {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.train-time-status.status-scheduled { color: var(--text-3); }
+.train-time-status.status-approaching { color: var(--accent-2); }
+.train-time-status.status-arrived { color: var(--success-2); }
+.train-time-status.status-boarding { color: var(--warning); }
+.train-time-status.status-ready { color: var(--accent-2); }
+.train-time-status.status-departed { color: var(--text-3); }
+.train-time-status.status-delayed { color: var(--danger); }
+.train-time-status.status-cancelled { color: var(--danger-2); text-decoration: line-through; }
+.train-time-status.status-unknown { color: var(--text-3); }
+
+.train-time-status.status-approaching::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 4px;
+    border-radius: 50%;
+    background: var(--accent-2);
+    animation: train-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes train-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.7); }
+}
+
+/* sonar style ring around whichever live train marker the sheet is
+   currently open for so its clear which dot on the map thats for */
+.live-train-sonar-ring {
+    transform-origin: 16px 16px;
+    animation: live-train-sonar 1.4s ease-out infinite;
+}
+
+@keyframes live-train-sonar {
+    0%   { transform: scale(1); opacity: 0.9; }
+    100% { transform: scale(3.2); opacity: 0; }
+}
+
+.train-platform {
+    font-size: 10px;
+    color: var(--text-3);
+}
+
+.train-row-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.train-live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--danger);
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
+    animation: train-pulse 1.4s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+.train-locate-btn {
+    background: none;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    color: var(--text-3);
+    display: flex;
+    align-items: center;
+    transition: color 0.2s;
+    flex-shrink: 0;
+}
+
+.train-locate-btn:hover { color: var(--accent); }
+
+.train-locate-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.train-route-toggle {
+    background: none;
+    border: none;
+    padding: 2px;
+    cursor: pointer;
+    color: var(--text-3);
+    display: flex;
+    align-items: center;
+    transition: color 0.2s;
+    flex-shrink: 0;
+}
+
+.train-route-toggle:hover { color: var(--text-1); }
+
+.train-route-toggle svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.25s ease;
+}
+
+.train-route-toggle.expanded svg { transform: rotate(180deg); }
+
+.train-route-details {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--sep);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.route-timeline { padding-left: 2px; }
+
+.route-stop {
+    display: flex;
+    gap: 8px;
+    position: relative;
+}
+
+.route-stop-track {
+    position: relative;
+    width: 10px;
+    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+}
+
+.route-stop-track::before {
+    content: "";
+    position: absolute;
+    top: 11px;
+    bottom: -8px;
+    width: 2px;
+    background: var(--sep);
+    transition: background-color 0.5s ease, opacity 0.5s ease;
+}
+
+.route-stop:last-child .route-stop-track::before { display: none; }
+
+.route-stop.state-passed .route-stop-track::before { background: var(--success-2); opacity: 0.5; }
+
+.route-stop-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-3);
+    opacity: 0.5;
+    margin-top: 3px;
+    z-index: 1;
+    transition: background-color 0.5s ease, opacity 0.5s ease, box-shadow 0.5s ease;
+}
+
+.route-stop.state-passed .route-stop-dot { background: var(--success-2); opacity: 1; }
+
+/* the one line segment leading from the last confirmed stop down into the
+   next one - a smooth car indicator style chase instead of any dot flashing */
+.route-stop-chase {
+    position: absolute;
+    top: 11px;
+    bottom: -8px;
+    left: 50%;
+    width: 2px;
+    transform: translateX(-50%);
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.route-stop-chase::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: -40%;
+    width: 100%;
+    height: 40%;
+    background: linear-gradient(180deg, transparent, var(--accent-2), transparent);
+    animation: route-chase-down 1.6s linear infinite;
+}
+
+@keyframes route-chase-down {
+    0%   { top: -40%; }
+    100% { top: 100%; }
+}
+
+.route-stop-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding-bottom: 7px;
+}
+
+.route-stop-name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.route-stop.state-upcoming .route-stop-name { color: var(--text-3); }
+
+.route-stop-time {
+    font-size: 10px;
+    color: var(--text-3);
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.route-stop.is-this-station {
+    background: var(--accent-soft);
+    border-radius: var(--r-sm);
+    margin: 0 -6px;
+    padding: 0 6px;
+}
+
+.route-stop.is-this-station .route-stop-name { color: var(--text-1); font-weight: 800; }
+
+/* ─── tram station panel ──────────────────────────────────────────────────── */
 #tram-station-panel {
     top: 68px;
     right: 12px;
@@ -1131,7 +1589,89 @@ input[type="text"] {
 
 .tram-station-icon { cursor: pointer; }
 
-/* ─── Map control buttons ─────────────────────────────────────────────────── */
+/* a fixed sheet instead of a map anchored popup so it always has a proper
+   spot on screen regardless of where the trains dot happens to be
+   sits above the other side panels so it can open in front of one thats
+   already open instead of replacing it */
+#live-train-panel {
+    top: 68px;
+    right: 12px;
+    width: 340px;
+    max-width: calc(95% - 24px);
+    max-height: 80vh;
+    overflow-y: auto;
+    transform: translateX(calc(100% + 16px));
+    pointer-events: none;
+    opacity: 0;
+    z-index: 1010;
+}
+
+#live-train-panel.visible {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#live-train-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 12px 10px 0 14px;
+}
+
+/* bigger and bolder than the compact route line in the station panel rows
+   since this is the sheets own title sat at the same level as the close
+   button instead of down inside the card */
+#live-train-header-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-1);
+}
+
+.live-train-title-from,
+.live-train-title-to {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.live-train-title-arrow {
+    width: 15px;
+    height: 15px;
+    color: var(--text-3);
+    flex-shrink: 0;
+}
+
+#live-train-close {
+    font-size: 20px;
+    color: var(--text-3);
+    cursor: pointer;
+    transition: color 0.2s;
+    padding: 2px;
+}
+
+#live-train-close:hover { color: var(--text-1); }
+
+#live-train-content { padding: 10px 14px 14px; }
+
+/* the sheet itself is already the one rounded rectangle here background
+   border and shadow from the shared panel styles so the reused train row
+   cards own background border and padding are dropped to avoid a second
+   redundant rectangle nested inside it */
+#live-train-content .train-row {
+    background: none;
+    border: none;
+    padding: 0;
+}
+
+/* ─── map control buttons ─────────────────────────────────────────────────── */
 .custom-controls-container {
     display: flex;
     flex-direction: column;
@@ -1201,14 +1741,14 @@ input[type="text"] {
 #layer-control-button svg { fill: var(--text-2); transition: fill 0.2s; }
 #layer-control-button:hover svg { fill: var(--accent); }
 
-/* Theme toggle icons */
+/* theme toggle icons */
 #theme-toggle svg { width: 18px; height: 18px; fill: var(--text-2); transition: fill 0.2s; }
 #theme-toggle:hover svg { fill: var(--accent); }
 #theme-icon-sun  { display: none; }
 [data-theme="dark"] #theme-icon-moon { display: none; }
 [data-theme="dark"] #theme-icon-sun  { display: block; }
 
-/* Trash lid animation */
+/* trash lid animation */
 #clear-route-button .trash-lid {
     transform-origin: 19px 7px;
     transition: transform 0.3s ease;
@@ -1224,7 +1764,7 @@ input[type="text"] {
     100% { transform: rotate(0deg); }
 }
 
-/* User location dot */
+/* user location dot */
 .user-location-dot {
     background-color: var(--accent-2);
     width: 16px;
@@ -1251,7 +1791,7 @@ input[type="text"] {
     transition: opacity 1s linear;
 }
 
-/* ─── Layer control panel ─────────────────────────────────────────────────── */
+/* ─── layer control panel ─────────────────────────────────────────────────── */
 #layer-control-panel {
     background: var(--surface-hi);
     backdrop-filter: var(--blur);
@@ -1305,7 +1845,7 @@ input[type="text"] {
     margin-top: 2px;
 }
 
-/* iOS-style toggle */
+/* ios style toggle */
 .toggle-control {
     position: relative;
     display: inline-block;
@@ -1342,7 +1882,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .slider.round { border-radius: var(--r-full); }
 .slider.round:before { border-radius: 50%; }
 
-/* ─── Plot notification toast ─────────────────────────────────────────────── */
+/* ─── plot notification toast ─────────────────────────────────────────────── */
 #plot-notification {
     position: absolute;
     top: 20px;
@@ -1409,7 +1949,7 @@ input:checked + .slider:before { transform: translateX(20px); }
     #plot-notification { font-size: 13px; padding: 10px 12px; }
 }
 
-/* ─── Delete popup ────────────────────────────────────────────────────────── */
+/* ─── delete popup ────────────────────────────────────────────────────────── */
 #delete-options-popup {
     position: absolute;
     z-index: 10002;
@@ -1523,7 +2063,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 #delete-route-all:hover  { background-color: var(--danger-2); }
 #delete-route-all:active { transform: scale(0.98); }
 
-/* ─── Timer options popup ─────────────────────────────────────────────────── */
+/* ─── timer options popup ─────────────────────────────────────────────────── */
 #timer-options-popup {
     position: absolute;
     z-index: 10005;
@@ -1579,7 +2119,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 
 #timer-popup-delete-btn:hover { background-color: var(--danger-2); }
 
-/* ─── Floating route timers ───────────────────────────────────────────────── */
+/* ─── floating route timers ───────────────────────────────────────────────── */
 #active-timers-container {
     display: flex;
     flex-direction: column;
@@ -1646,7 +2186,7 @@ input:checked + .slider:before { transform: translateX(20px); }
     z-index: 1;
 }
 
-/* ─── Arrival right-side elements ─────────────────────────────────────────── */
+/* ─── arrival right-side elements ─────────────────────────────────────────── */
 .arrival-right-content {
     display: flex;
     align-items: center;
@@ -1719,7 +2259,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .btime-timer-wrapper.visible { opacity: 1; pointer-events: auto; }
 .btime-timer-svg { transform: rotate(175deg) scaleY(-1); }
 
-/* ─── Bus icon (map marker) ────────────────────────────────────────────────── */
+/* ─── bus icon map marker ────────────────────────────────────────────────── */
 .bus-text-icon { transition: opacity 2s ease; }
 
 .bus-icon-body {
@@ -1757,7 +2297,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .bus-icon-lineid { font-weight: 700; font-size: 12px; }
 .bus-icon-vehno  { font-size: 8px; opacity: 0.75; }
 
-/* ─── Stop markers ────────────────────────────────────────────────────────── */
+/* ─── stop markers ────────────────────────────────────────────────────────── */
 .shared-stop-icon {}
 
 .interactive-stop-dot {
@@ -1772,7 +2312,7 @@ input:checked + .slider:before { transform: translateX(20px); }
     stroke-width: 1px;
 }
 
-/* ─── Heading arrow ───────────────────────────────────────────────────────── */
+/* ─── heading arrow ───────────────────────────────────────────────────────── */
 .heading-arrow-icon {
     display: flex;
     align-items: center;
@@ -1788,7 +2328,7 @@ input:checked + .slider:before { transform: translateX(20px); }
     transform-origin: center center;
 }
 
-/* ─── Stop labels ─────────────────────────────────────────────────────────── */
+/* ─── stop labels ─────────────────────────────────────────────────────────── */
 .stop-label {
     background-color: transparent;
     border: none;
@@ -1815,7 +2355,25 @@ input:checked + .slider:before { transform: translateX(20px); }
     border: none !important;
 }
 
-/* ─── Bus popup (map) ─────────────────────────────────────────────────────── */
+/* ─── train / suburban stop tooltip ───────────────────────────────────────── */
+.train-tooltip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+    color: var(--text-1);
+    font-family: var(--font);
+    font-size: 12px;
+    line-height: 1.4;
+    padding: 6px 10px;
+    border-radius: var(--r-sm);
+    white-space: nowrap;
+}
+
+.leaflet-tooltip-top.train-tooltip::before {
+    border-top-color: var(--border);
+}
+
+/* ─── bus popup map ─────────────────────────────────────────────────────── */
 .bus-popup .leaflet-popup-content-wrapper {
     background: rgba(15, 23, 42, 0.93);
     color: #f1f5f9;
@@ -1837,7 +2395,92 @@ input:checked + .slider:before { transform: translateX(20px); }
 .bus-popup .leaflet-popup-tip { background: rgba(15, 23, 42, 0.93); }
 .bus-popup a.leaflet-popup-close-button { display: none; }
 
-/* ─── Delay tooltip ───────────────────────────────────────────────────────── */
+.train-route-diagram-loading {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+
+/* you are here indicator for the live train card green dot for the last
+   confirmed stop chasing highlight for direction of travel and a pulsing dot
+   for the stop its heading to next */
+.train-progress {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.train-progress-stop {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    flex: 0 1 auto;
+}
+
+.train-progress-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.train-progress-dot.passed { background: var(--success-2); }
+
+.train-progress-dot.current {
+    background: var(--success-2);
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+    animation: train-pulse 1.4s ease-in-out infinite;
+}
+
+.train-progress-name {
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.train-progress-name.passed { color: var(--text-3); font-weight: 500; }
+.train-progress-name.current { color: var(--text-1); font-weight: 700; }
+
+.train-progress-track {
+    flex: 1 1 auto;
+    min-width: 20px;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--sep);
+    position: relative;
+    overflow: hidden;
+}
+
+.train-progress-track::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -40%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, var(--success-2), transparent);
+    animation: train-progress-chase 1.6s linear infinite;
+}
+
+.train-progress-caption {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-3);
+    margin-bottom: 4px;
+}
+
+@keyframes train-progress-chase {
+    0% { left: -40%; }
+    100% { left: 100%; }
+}
+
+/* ─── delay tooltip ───────────────────────────────────────────────────────── */
 #delay-tooltip {
     position: absolute;
     background-color: rgba(15, 23, 42, 0.95);
@@ -1855,108 +2498,7 @@ input:checked + .slider:before { transform: translateX(20px); }
     box-shadow: var(--shadow-md);
 }
 
-/* ─── Suburban table ─────────────────────────────────────────────────────── */
-.suburban-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13.5px;
-    font-family: var(--font);
-    text-align: center;
-    table-layout: fixed;
-}
-
-.suburban-table thead { position: sticky; top: 0; z-index: 1; }
-
-.suburban-table th {
-    background-color: var(--table-head);
-    font-weight: 600;
-    font-size: 11px;
-    color: var(--text-3);
-    padding: 8px 4px;
-    border-bottom: 2px solid var(--sep);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-
-.suburban-table td {
-    padding: 10px 4px;
-    border-bottom: 1px solid var(--table-border);
-    color: var(--text-1);
-}
-
-.suburban-table tbody tr:nth-child(even) {
-    background-color: var(--table-even);
-}
-
-.suburban-table tr.delayed {
-    background-color: rgba(245, 158, 11, 0.08);
-    border-left: 3px solid var(--warning);
-}
-
-.suburban-table td.company-cell {
-    font-size: 11.5px;
-    font-weight: 500;
-    line-height: 1.2;
-    color: var(--text-2);
-}
-
-.suburban-table td.from-to-cell {
-    font-size: 12px;
-    font-weight: 600;
-    text-align: left;
-    padding-left: 8px;
-    word-break: break-word;
-}
-
-.suburban-table td.delay-cell { font-weight: 700; }
-
-.delay-text { color: var(--warning); }
-
-.delay-info-icon {
-    font-style: normal;
-    font-weight: 700;
-    color: #fff;
-    background-color: var(--warning);
-    border-radius: 50%;
-    padding: 0 6px;
-    font-size: 11px;
-    cursor: pointer;
-    margin-left: 3px;
-}
-
-.scheduled-time {
-    text-decoration: line-through;
-    color: var(--text-3);
-    margin-right: 5px;
-}
-
-.forecasted-time {
-    font-weight: 700;
-    color: var(--warning);
-}
-
-@media (min-width: 769px) {
-    .suburban-table th:nth-child(1) { width: 20%; }
-    .suburban-table th:nth-child(2) { width: 8%; }
-    .suburban-table th:nth-child(3) { width: 44%; }
-    .suburban-table th:nth-child(4) { width: 7%; }
-    .suburban-table th:nth-child(5) { width: 6%; }
-    .suburban-table th:nth-child(6) { width: 8%; }
-    .suburban-table th:nth-child(7) { width: 7%; }
-    .suburban-table th { border-right: 1px solid var(--table-border); }
-    .suburban-table td { border-right: 1px solid var(--table-border); }
-    .suburban-table th:last-child,
-    .suburban-table td:last-child { border-right: none; }
-}
-
-@media (max-width: 768px) {
-    #suburban-station-content {
-        max-height: 35dvh;
-        overflow-y: auto;
-    }
-}
-
-/* ─── Smooth theme transition ─────────────────────────────────────────────── */
+/* ─── smooth theme transition ─────────────────────────────────────────────── */
 html.theme-transition,
 html.theme-transition *,
 html.theme-transition *::before,
@@ -1971,20 +2513,23 @@ html.theme-transition *::after {
         filter           0.5s  ease !important;
 }
 
-/* ─── Mobile overrides ────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
+/* dims whatever panel is behind the one thats currently in front like the
+   stop sheet behind the live train sheet - works on both desktop and mobile */
+.panel-demoted {
+    opacity: 0.6;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+}
 
-    .panel-demoted {
-        opacity: 0.6;
-        pointer-events: none;
-        transition: opacity 0.4s ease;
-    }
+/* ─── mobile overrides ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
 
     #schedule-panel,
     #stop-info-panel,
     #metro-station-panel,
     #suburban-station-panel,
-    #tram-station-panel {
+    #tram-station-panel,
+    #live-train-panel {
         top: auto;
         bottom: 0;
         left: 0;
@@ -1995,18 +2540,27 @@ html.theme-transition *::after {
         transform: translateY(100%);
         opacity: 1;
         box-sizing: border-box;
+        /* mobile safari/chrome show their own back/forward/tabs bar right
+           over the bottom of the page this keeps the sheets own bottom
+           edge and whatever is scrolled to the end of it clear of that
+           instead of the last stop ending up hidden behind those buttons */
+        padding-bottom: env(safe-area-inset-bottom, 16px);
     }
 
     #schedule-panel.visible,
     #stop-info-panel.visible,
     #metro-station-panel.visible,
     #suburban-station-panel.visible,
-    #tram-station-panel.visible {
+    #tram-station-panel.visible,
+    #live-train-panel.visible {
         transform: translateY(0);
     }
 
-    #schedule-panel   { max-height: 45dvh; }
-    #stop-info-panel  { max-height: 50dvh; }
+    #schedule-panel   { max-height: 45svh; }
+    #stop-info-panel  { max-height: 50svh; }
+    #suburban-station-panel { max-height: 45svh; }
+    #suburban-station-content { max-height: 32svh; }
+    #live-train-panel { max-height: 45svh; }
 
     #stop-info-header  { padding-bottom: 8px; margin-bottom: 10px; gap: 6px; }
     #stop-info-title   { font-size: 14px; }
@@ -2022,7 +2576,7 @@ html.theme-transition *::after {
     .btime-timer-wrapper { width: 24px; height: 24px; }
 
     #stop-info-arrivals,
-    #stop-info-lines-content { max-height: 25dvh; }
+    #stop-info-lines-content { max-height: 25svh; }
 
     .custom-controls-container { top: 12px; }
 

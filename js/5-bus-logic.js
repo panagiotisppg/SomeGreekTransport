@@ -33,23 +33,23 @@ const createRouteTimerUI = (routeCode, lineID, color) => {
         <div class="route-timer-text">${lineID}</div>
     `;
 
-    // add a click listener for the popup
+    // click listener for the popup
     wrapper.addEventListener('click', (e) => {
-        e.stopPropagation(); // Stop map from clicking
+        e.stopPropagation(); // stop map from clicking
 
-        // 1. find the route data
+        // find the route data
         const route = plottedRoutes.find(r => r.routeCode === routeCode);
         if (!route) return;
 
-        // 2. manage panels (close others)
+        // close other panels
         manageOpenPanels('timer');
 
-        // 3. populate popup text
+        // populate popup text
         if (timerPopupRouteName) {
             timerPopupRouteName.innerHTML = `<span style="color:${colorHex[route.color]}">${route.lineID}</span> ${route.routeDescr}`;
         }
 
-        // 4. handle delete button logic
+        // handle delete button
         if (timerPopupDeleteBtn) {
             timerPopupDeleteBtn.onclick = (ev) => {
                 ev.stopPropagation();
@@ -58,7 +58,7 @@ const createRouteTimerUI = (routeCode, lineID, color) => {
             };
         }
 
-        // 5. Position and Show Popup
+        // position and show the popup
         const rect = wrapper.getBoundingClientRect();
         if (timerOptionsPopup) {
             timerOptionsPopup.style.top = `${rect.top}px`;
@@ -186,8 +186,8 @@ async function plotAnimatedRoute(routeCode, lineID, routeDescr) {
   }
   const lineStyle = routeStyles[color];
   
-  // Start the timer immediately so logic works, 
-  // we add the visual element in the rendering phase below
+  // start the timer immediately so logic works
+  // the visual element gets added in the rendering phase below
   startBusLocationTimer(routeCode, color);
 
   const detailsUrl = `${PROXY_URL}${encodeURIComponent(`https://telematics.oasa.gr/api/?act=webGetRoutesDetailsAndStops&p1=${routeCode}&t=${Date.now()}`)}`;
@@ -210,12 +210,11 @@ async function plotAnimatedRoute(routeCode, lineID, routeDescr) {
         layerGroup.addTo(map);
         clearRouteButton.style.display = "flex";
         
-        // --- ADD THE FLOATING TIMER TO UI ---
+        // add the floating timer to the ui
         const timerUI = createRouteTimerUI(routeCode, lineID, color);
         if (activeTimersContainer) {
             activeTimersContainer.appendChild(timerUI);
         }
-        // ------------------------------------
 
         updateArrivalsUIState();
         if (plottedRoutes.length > 1) { updateHighlightedStops(); }
@@ -321,16 +320,16 @@ function clearRoutes(routesToDelete) {
   }
   
   routesToDelete.forEach((route) => {
-    // 1. Stop the data logic
+    // stop the data logic
     stopBusLocationTimer(route.routeCode);
-    
-    // 2. Animate and remove the visual timer
+
+    // animate and remove the visual timer
     const timerEl = document.getElementById(`route-timer-${route.routeCode}`);
     if (timerEl) {
-        timerEl.classList.add('fade-out'); // Triggers opacity/scale/height animation
+        timerEl.classList.add('fade-out'); // triggers opacity/scale/height animation
         setTimeout(() => {
             if(timerEl.parentNode) timerEl.parentNode.removeChild(timerEl);
-        }, 350); // wait for CSS transition
+        }, 350); // wait for css transition
     }
   });
 
@@ -417,7 +416,7 @@ function startBusLocationTimer(routeCode, color) {
         }
     });
 
-    // Update Floating Route Timer 
+    // update the floating route timer
     const floatingTimer = document.getElementById(`route-timer-${routeCode}`);
     if (floatingTimer) {
         const progressCircle = floatingTimer.querySelector(".route-timer-progress");
@@ -775,25 +774,25 @@ clearRouteButton.addEventListener('click', (e) => {
     deletePopup.style.top = `${btnRect.top}px`;
     deletePopup.style.left = `${btnRect.right + 10}px`;
 
-    // reset Elements
+    // reset elements
     deleteCyanBtn.style.display = 'none';
     deleteGreenBtn.style.display = 'none';
     deleteAllBtn.style.display = 'none';
 
-    // 1. setup cyan route row
+    // setup cyan route row
     const cyanRoute = plottedRoutes.find(r => r.color === 'cyan');
     if (cyanRoute) {
         deleteCyanBtn.style.display = 'flex';
         // update text
         deleteCyanBtn.querySelector('.delete-route-id').textContent = cyanRoute.lineID;
         deleteCyanBtn.querySelector('.delete-route-descr').textContent = cyanRoute.routeDescr;
-        
-        // handle "Delete" click (the button on the right)
+
+        // handle delete click on the button on the right
         const actionBtn = deleteCyanBtn.querySelector('.route-delete-action');
-        // Remove old listeners by cloning
+        // remove old listeners by cloning
         const newBtn = actionBtn.cloneNode(true);
         actionBtn.parentNode.replaceChild(newBtn, actionBtn);
-        
+
         newBtn.onclick = (ev) => {
             ev.stopPropagation();
             clearRoutes([cyanRoute]);
@@ -801,20 +800,20 @@ clearRouteButton.addEventListener('click', (e) => {
         };
     }
 
-    // 2. setup green route row
+    // setup green route row
     const greenRoute = plottedRoutes.find(r => r.color === 'green');
     if (greenRoute) {
         deleteGreenBtn.style.display = 'flex';
         // update text
         deleteGreenBtn.querySelector('.delete-route-id').textContent = greenRoute.lineID;
         deleteGreenBtn.querySelector('.delete-route-descr').textContent = greenRoute.routeDescr;
-        
-        // handle "Delete" click
+
+        // handle delete click
         const actionBtn = deleteGreenBtn.querySelector('.route-delete-action');
-        // Remove old listeners by cloning
+        // remove old listeners by cloning
         const newBtn = actionBtn.cloneNode(true);
         actionBtn.parentNode.replaceChild(newBtn, actionBtn);
-        
+
         newBtn.onclick = (ev) => {
             ev.stopPropagation();
             clearRoutes([greenRoute]);
@@ -822,7 +821,7 @@ clearRouteButton.addEventListener('click', (e) => {
         };
     }
 
-    // 3. setup "Delete Both"
+    // setup delete both
     if (plottedRoutes.length > 1) {
         deleteAllBtn.style.display = 'block';
     }

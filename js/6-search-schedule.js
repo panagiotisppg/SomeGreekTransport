@@ -1,4 +1,3 @@
-// const PROXY_URL = "https://oasa-proxy.panagot94.workers.dev/?url=";
 // panel logic
 async function showSchedulePanel(lineData) {
   if (stopInfoPanel.classList.contains('visible')) {
@@ -6,7 +5,7 @@ async function showSchedulePanel(lineData) {
   }
   if (suburbanStationPanel.classList.contains('visible')) {
     suburbanStationPanel.classList.remove('visible');
-    stopSuburbanTimer(); 
+    stopSuburbanTimer();
   }
   updateButtonPosition();
   schedulePanel.classList.add("visible");
@@ -107,7 +106,7 @@ function populateScheduleRoutes(routesArray, lineID) {
     });
     scheduleRoutesList.appendChild(routeRow);
   });
-  // Update state immediately to gray out buttons if needed
+  // update state immediately to gray out buttons if needed
   updateArrivalsUIState();
 }
 

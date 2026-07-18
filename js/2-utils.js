@@ -35,11 +35,6 @@ function showNoArrivalsUI(container, message) {
   container.innerHTML = `<div class="no-arrivals-container"><div class="no-arrivals-icon">${noBusSvg}</div><div class="info-message">${message}</div></div>`;
 }
 
-function showNoSuburbanArrivalsUI(container, message) {
-  const noTrainSvg = `<svg viewBox="0 0 64 64"><g fill="none" stroke="#bbb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="14" y="16" width="60" height="28" rx="4"></rect><rect x="22" y="22" width="20" height="13"></rect><rect fill="#bbb" x="40" y="45" width="6" height="4"></rect><rect fill="#bbb" x="18" y="45" width="6" height="4"></rect><path d="M24 16 L 40 16"></path><path d="M10 52 H 54"></path><line x1="56" y1="8" x2="8" y2="56"></line></g></svg>`;
-  container.innerHTML = `<div class="no-arrivals-container"><div class="no-arrivals-icon">${noTrainSvg}</div><div class="info-message">${message}</div></div>`;
-}
-
 function manageOpenPanels(panelToKeep) {
   const panels = [
     { element: searchResultsContainer, name: 'search' },
@@ -54,10 +49,15 @@ function manageOpenPanels(panelToKeep) {
   });
 }
 
+// opening any regular panel resets the live train sheets special
+// in front / demoted stacking too so it never gets left open behind one
 function clearDemotedPanels() {
   stopInfoPanel.classList.remove('panel-demoted');
   suburbanStationPanel.classList.remove('panel-demoted');
   tramStationPanel.classList.remove('panel-demoted');
+  metroStationPanel.classList.remove('panel-demoted');
+  schedulePanel.classList.remove('panel-demoted');
+  if (typeof closeLiveTrainSheet === 'function') closeLiveTrainSheet();
 }
 
 // notifications and drag logic
@@ -78,7 +78,7 @@ function initNotificationGestures() {
     plotNotification.addEventListener('pointermove', (e) => {
         if (!isDraggingNotif) return;
         const deltaY = e.clientY - dragStartY;
-        // only move if dragging upwards (negative delta)
+        // only move if dragging upwards
         if (deltaY < 0) {
             plotNotification.style.transform = `translate(-50%, ${deltaY}px)`;
         }
@@ -92,7 +92,7 @@ function initNotificationGestures() {
         
         const deltaY = e.clientY - dragStartY;
         
-        // threshold to close: -30px
+        // threshold to close is -30px
         if (deltaY < -30) {
             // slide out fully up
             plotNotification.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
@@ -172,5 +172,5 @@ if (timerProgress) {
 if (suburbanTimerProgress) {
     suburbanTimerProgress.style.strokeDasharray = `${circumference} ${circumference}`;
 }
-// Initialize the drag listener immediately
+// initialize the drag listener immediately
 initNotificationGestures();

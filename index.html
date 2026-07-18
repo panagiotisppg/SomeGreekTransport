@@ -2,7 +2,7 @@
 <html lang="en" data-theme="light">
 
 <head>
-    <!-- Dark mode: run before CSS to avoid flash of wrong theme -->
+    <!-- dark mode runs before css to avoid a flash of the wrong theme -->
     <script>
       (function(){
         var t = localStorage.getItem('theme') ||
@@ -11,7 +11,28 @@
       })();
     </script>
 
-    <!-- Google tag (gtag.js) -->
+    <!-- svh/dvh dont reliably track mobile safaris own toolbar on a page
+         that never scrolls itself so this tracks the browsers own
+         visualviewport directly instead which is what actually knows
+         the real visible height with the toolbar accounted for -->
+    <script>
+      (function(){
+        function setAppHeight(){
+          var vv = window.visualViewport;
+          var h = vv ? vv.height : window.innerHeight;
+          document.documentElement.style.setProperty('--app-vh', h + 'px');
+        }
+        setAppHeight();
+        if (window.visualViewport) {
+          window.visualViewport.addEventListener('resize', setAppHeight);
+          window.visualViewport.addEventListener('scroll', setAppHeight);
+        } else {
+          window.addEventListener('resize', setAppHeight);
+        }
+      })();
+    </script>
+
+    <!-- google tag gtag.js -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-9Z47V04RHE"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -21,25 +42,25 @@
       gtag('config', 'G-9Z47V04RHE');
     </script>
 
-    <!-- SEO & Metadata -->
+    <!-- seo and metadata -->
     <title>SomeGreekTransport | Athens Bus Live Tracker, Metro & Tram</title>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
-    <!-- Google Verification -->
+    <!-- google verification -->
     <meta name="google-site-verification" content="TLCxA6H3LNjM76loIhpXHLJVjtSt_Mh8mJFTTcOz7Qw" />
 
-    <!-- Description -->
-    <meta name="description" content="A lightweight, real-time tracker for Athens public transport. View live OASA bus arrivals, Metro lines, Tram lines, and Suburban railway live updates on an interactive map.">
+    <!-- description -->
+    <meta name="description" content="A lightweight, real-time tracker for Athens public transport. View live OASA bus arrivals, Metro lines, Tram lines, and the national railway network on an interactive map.">
+
+    <!-- keywords -->
+    <meta name="keywords" content="Athens bus tracker, OASA telematics, Athens Metro map, Tram Athens, Greek railway map, Greek public transport, Athens bus arrival time, OASA live">
     
-    <!-- Keywords -->
-    <meta name="keywords" content="Athens bus tracker, OASA telematics, Athens Metro map, Tram Athens, Proastiakos live, Greek public transport, Athens bus arrival time, OASA live">
-    
-    <!-- Robots -->
+    <!-- robots -->
     <meta name="robots" content="index, follow">
     <meta name="author" content="panagiotisppg">
 
-    <!-- Open Graph: for social media link sharing -->
+    <!-- open graph for social media link sharing -->
     <meta property="og:title" content="SomeGreekTransport - Live Athens Transit">
     <meta property="og:description" content="Real-time map for Athens Buses with Metro, and Tram lines and stops. Check live bus arrivals and schedules instantly.">
     <meta property="og:image" content="favicon.svg"> 
@@ -48,7 +69,7 @@
 
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
 
-    <!-- Inter font -->
+    <!-- inter font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
@@ -166,13 +187,15 @@
     <!-- suburban station info panel -->
     <div id="suburban-station-panel">
         <div id="suburban-station-header">
-            <button id="suburban-station-refresh" title="Refresh Arrivals">
+            <button id="suburban-station-refresh" title="Refresh Arrivals/Departures">
                 <svg viewBox="0 0 24 24">
                     <path d="M17.65,6.35C16.2,4.9,14.21,4,12,4A8,8,0,0,0,4,12A8,8,0,0,0,12,20C15.73,20,18.84,17.45,19.73,14H17.65C16.83,16.33,14.61,18,12,18A6,6,0,0,1,6,12A6,6,0,0,1,12,6C13.66,6,15.14,6.69,16.22,7.78L13,11H20V4L17.65,6.35Z"></path>
                 </svg>
             </button>
-            <h3 id="suburban-station-title"></h3>
-
+            <div id="suburban-station-title-wrap">
+                <h3 id="suburban-station-title"></h3>
+                <div id="suburban-station-lines"></div>
+            </div>
             <div id="suburban-refresh-container">
                 <span class="auto-refresh-text">Auto Refresh in:</span>
                 <div class="timer-wrapper">
@@ -180,11 +203,32 @@
                         <path class="timer-track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
                         <path id="suburban-timer-progress" class="timer-progress" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
                     </svg>
-                    <div id="suburban-timer-text" class="timer-text">90</div>
+                    <div id="suburban-timer-text" class="timer-text">60</div>
                 </div>
             </div>
-
             <span id="suburban-station-close">×</span>
+        </div>
+        <div id="suburban-train-filter">
+            <div class="icon-toggle-switch">
+                <input type="radio" id="suburban-filter-passenger" name="suburban-filter" value="passenger" checked>
+                <label for="suburban-filter-passenger" title="Passenger trains only">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M8 3.5c-1.8 0-3 1.3-3 3v7.5" stroke-width="3.2"></path>
+                        <path d="M5 14a2 2 0 0 0 2 2h9" stroke-width="3.2"></path>
+                        <path d="M6 16 L4 21 A1.5 1.5 0 0 0 5.5 22.5 L16.5 22.5 A1.5 1.5 0 0 0 18 21 L16 16" stroke-width="1.4"></path>
+                    </svg>
+                </label>
+                <input type="radio" id="suburban-filter-all" name="suburban-filter" value="all">
+                <label for="suburban-filter-all" title="All trains, including freight">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 15V7a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z"></path>
+                        <path d="M5 10h14"></path>
+                        <circle cx="9" cy="18.5" r="1.3" fill="currentColor" stroke="none"></circle>
+                        <circle cx="15" cy="18.5" r="1.3" fill="currentColor" stroke="none"></circle>
+                    </svg>
+                </label>
+                <span class="icon-toggle-slider"></span>
+            </div>
         </div>
         <div id="suburban-station-content"></div>
     </div>
@@ -198,6 +242,15 @@
             <p>Lines:</p>
             <div id="tram-station-lines"></div>
         </div>
+    </div>
+
+    <!-- live train info sheet -->
+    <div id="live-train-panel">
+        <div id="live-train-header">
+            <span id="live-train-header-title"></span>
+            <span id="live-train-close">×</span>
+        </div>
+        <div id="live-train-content"></div>
     </div>
 
     <!-- map container -->
@@ -218,11 +271,11 @@
         </button>
 
         <button id="theme-toggle" title="Toggle dark mode">
-            <!-- Moon: shown in light mode -->
+            <!-- moon shown in light mode -->
             <svg id="theme-icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
             </svg>
-            <!-- Sun: shown in dark mode -->
+            <!-- sun shown in dark mode -->
             <svg id="theme-icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                 <circle cx="12" cy="12" r="5"/>
                 <line x1="12" y1="1"  x2="12" y2="3"/>
@@ -314,7 +367,7 @@
     <!-- delete confirmation popup -->
     <div id="delete-options-popup">
         <div class="popup-content">
-            <!-- row for cyan Route -->
+            <!-- row for cyan route -->
             <div id="delete-route-cyan" class="route-delete-row" style="display: none;">
                 <div class="route-delete-info">
                     <span class="delete-route-id text-cyan"></span>
@@ -323,7 +376,7 @@
                 <button class="route-delete-action">Delete</button>
             </div>
 
-            <!-- row for green Route -->
+            <!-- row for green route -->
             <div id="delete-route-green" class="route-delete-row" style="display: none;">
                 <div class="route-delete-info">
                     <span class="delete-route-id text-green"></span>

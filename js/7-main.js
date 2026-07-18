@@ -78,17 +78,15 @@ document.addEventListener("DOMContentLoaded", () => {
       dataCache.metroLinesData = metroLines;
       dataCache.metroStationsData = metroStations;
       updateProgressBar(65);
-      loadingText.innerText = "Loading Suburban & Tram Data...";
+      loadingText.innerText = "Loading Rail & Tram Data...";
       return Promise.all([
-        fetchAndDecompressGzip(`${dataPath}Proastiakos_AM_CoR.json.gz`),
-        fetchAndDecompressGzip(`${dataPath}Proastiakos_Stops_AM_CoR.json.gz`),
+        fetchAndDecompressGzip(`${dataPath}all_trains_suburbans.json.gz`),
         fetchAndDecompressGzip(`${dataPath}tram_lines.json.gz`),
         fetchAndDecompressGzip(`${dataPath}tram_stops.json.gz`)
       ]);
     })
-    .then(([suburbanLines, suburbanStations, tramLines, tramStops]) => {
-      dataCache.suburbanLinesData = suburbanLines;
-      dataCache.suburbanStationsData = suburbanStations;
+    .then(([trainsData, tramLines, tramStops]) => {
+      dataCache.trainsData = trainsData;
       dataCache.tramLinesData = tramLines;
       dataCache.tramStopsData = tramStops;
       loadingText.innerText = "Processing Data...";
@@ -149,11 +147,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const initialStyle = { ...baseStopStyle, radius: initialRadius };
 
       stopsLayerNotInteractive = L.geoJSON(mergedStopsGeoJSON, {
-        renderer: myCanvasRenderer,
+        renderer: busStopsCanvasRenderer,
         pointToLayer: (_f, l) => L.circleMarker(l, { ...initialStyle, interactive: false }),
       });
 
       stopsLayerInteractive = L.geoJSON(mergedStopsGeoJSON, {
+        renderer: busStopsSvgRenderer,
         pointToLayer: (_feature, latlng) => L.circleMarker(latlng, { ...initialStyle, className: "interactive-stop-dot" }),
         onEachFeature: (feature, layer) => {
           layer.bindTooltip(feature.properties.stop_descr, { permanent: false, direction: "bottom", offset: [0, 8], className: "stop-label" });
@@ -189,8 +188,32 @@ document.addEventListener("DOMContentLoaded", () => {
         style: (feature) => ({ color: metroLineColors[feature.properties.LINE] || '#000000', weight: 4, opacity: 0.8 }),
         pane: 'metroPane'
       }).addTo(map);
-      suburbanLayer = L.geoJSON(dataCache.suburbanLinesData, {
-        style: (feature) => ({ color: suburbanLineColors[feature.properties.LINE] || '#A9A9A9', weight: 3.5, opacity: 0.75 }),
+
+      suburbanGroupColors = new Map(dataCache.trainsData.groups.map(g => [g.name, g.color]));
+      suburbanStopGroupsByGovId = new Map();
+      dataCache.trainsData.stops.forEach(s => {
+        (s.govIds || []).forEach(govId => suburbanStopGroupsByGovId.set(govId, s.groups || []));
+      });
+      const suburbanLinesGeoJSON = {
+        type: "FeatureCollection",
+        features: dataCache.trainsData.groups.flatMap(g =>
+          g.segments.map(seg => ({
+            type: "Feature",
+            properties: { group: g.name, description: g.description, color: g.color },
+            geometry: { type: "LineString", coordinates: seg.coords },
+          }))
+        ),
+      };
+      const suburbanStopsGeoJSON = {
+        type: "FeatureCollection",
+        features: dataCache.trainsData.stops.map(s => ({
+          type: "Feature",
+          properties: { id: s.id, name: s.name, groups: s.groups, stopCode: s.stopCode, govIds: s.govIds, customFields: s.customFields },
+          geometry: { type: "Point", coordinates: s.coords },
+        })),
+      };
+      suburbanLayer = L.geoJSON(suburbanLinesGeoJSON, {
+        style: (feature) => ({ color: feature.properties.color || '#A9A9A9', weight: 3.5, opacity: 0.75 }),
         pane: 'suburbanPane'
       }).addTo(map);
       tramLayer = L.geoJSON(dataCache.tramLinesData, {
@@ -201,9 +224,19 @@ document.addEventListener("DOMContentLoaded", () => {
         pointToLayer: (feature, latlng) => L.marker(latlng, { icon: L.divIcon({ html: createMetroIcon(feature.properties.MSYM), className: 'metro-station-icon', iconSize: [24, 24], iconAnchor: [12, 12] }), pane: 'metroStationPane' }),
         onEachFeature: (feature, layer) => { layer.on('click', (e) => { L.DomEvent.stopPropagation(e); showMetroInfo(feature.properties); map.flyTo(e.latlng, 16); }); }
       });
-      suburbanStationsLayer = L.geoJSON(dataCache.suburbanStationsData, {
-        pointToLayer: (_feature, latlng) => L.marker(latlng, { icon: L.divIcon({ html: createSuburbanIcon(), className: 'suburban-station-icon', iconSize: [16, 16], iconAnchor: [8, 8] }), pane: 'suburbanStationPane' }),
-        onEachFeature: (feature, layer) => { layer.on('click', (e) => { L.DomEvent.stopPropagation(e); showSuburbanInfo(feature.properties); map.flyTo(e.latlng, 16); }); }
+      suburbanStationsLayer = L.geoJSON(suburbanStopsGeoJSON, {
+        pointToLayer: (feature, latlng) => {
+          const icon = L.divIcon({ html: createSuburbanIcon(feature.properties.groups), className: 'suburban-station-icon', iconSize: [13, 13], iconAnchor: [6.5, 6.5] });
+          return L.marker(latlng, { icon: icon, pane: 'suburbanStationPane' });
+        },
+        onEachFeature: (feature, layer) => {
+          layer.bindTooltip(`<b>${feature.properties.name}</b><br>${feature.properties.groups.join(' · ')}`, { className: 'train-tooltip', direction: 'top', offset: [0, -6] });
+          layer.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            showSuburbanInfo(feature.properties);
+            map.flyTo(e.latlng, 16);
+          });
+        }
       });
       tramStationsLayer = L.geoJSON(dataCache.tramStopsData, {
         pointToLayer: (feature, latlng) => L.marker(latlng, { icon: L.divIcon({ html: createTramIcon(feature.properties.LINE_T), className: 'tram-station-icon', iconSize: [18, 18], iconAnchor: [9, 9] }), pane: 'tramStationPane' }),
@@ -215,7 +248,7 @@ document.addEventListener("DOMContentLoaded", () => {
       hideLoader();
       updateButtonPosition();
 
-      // Keep stop colours in sync with the active theme
+      // keep stop colours in sync with the active theme
       const stopFills = { light: '#003366', dark: '#4d94ff' };
       function applyStopTheme() {
         const fill = stopFills[document.documentElement.getAttribute('data-theme')] || stopFills.light;
