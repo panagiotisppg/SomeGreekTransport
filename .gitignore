@@ -1,2 +1,7 @@
 .DS_Store
 .vscode/
+
+# replaced by data/all_trains_suburbans.json.gz - no code references these
+# anymore, ignored so the auto updater re-adding them doesnt get committed
+data/Proastiakos_AM_CoR.json.gz
+data/Proastiakos_Stops_AM_CoR.json.gz
