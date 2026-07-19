@@ -923,14 +923,79 @@ function abbreviateProgressStopName(name) {
   return name;
 }
 
+const trainAtStopRadiusMeters = 150;
+
+// yards like the rentis depot fan out over several hundred meters of sidings
+// around the one point we have coordinates for so guessing the nearest stop
+// for an unmatched train needs a much wider radius than a real platform does
+const nearestStopRadiusMeters = 500;
+
+// the schedule data only flips a stop over to passed once the api reports
+// a real arrival time which can lag behind reality - a train sitting still
+// this close to the stop its heading to is for all practical purposes
+// already doing that stop even if the route still calls it the next one
+// distancetonextstation_m from the live stream is almost always null in
+// practice even for trains with a real position and a known next station
+// so this falls back to our own stop coordinates and measures it directly
+function isTrainStoppedAtNextStation(pos) {
+  if (typeof pos.speed !== 'number' || pos.speed >= 1) return false;
+  if (typeof pos.lat !== 'number' || typeof pos.lng !== 'number') return false;
+
+  if (typeof pos.distanceToNextStation_m === 'number') {
+    return pos.distanceToNextStation_m <= trainAtStopRadiusMeters;
+  }
+
+  const stop = pos.nextStationId ? suburbanStopCoordsByGovId.get(pos.nextStationId) : null;
+  if (!stop) return false;
+  const distance = L.latLng(pos.lat, pos.lng).distanceTo(L.latLng(stop.lat, stop.lng));
+  return distance <= trainAtStopRadiusMeters;
+}
+
+// finds the physically nearest stop by straight line distance regardless of
+// which line its on - a schedule tells us which stop is next but an
+// unmatched train has no schedule so the closest one is the best guess
+function findClosestSuburbanStop(lat, lng) {
+  let closestName = null;
+  let closestDistance = Infinity;
+  suburbanStopCoordsByGovId.forEach((stop) => {
+    const distance = L.latLng(lat, lng).distanceTo(L.latLng(stop.lat, stop.lng));
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestName = stop.name;
+    }
+  });
+  return closestName ? { name: closestName, distance: closestDistance } : null;
+}
+
+// unmatched trains have no schedule to say whats next but a stationary one
+// this close to some real stop is still worth naming instead of just corridor and speed
+function getStoppedNearbyStopName(pos) {
+  if (typeof pos.speed !== 'number' || pos.speed >= 1) return null;
+  if (typeof pos.lat !== 'number' || typeof pos.lng !== 'number') return null;
+  const closest = findClosestSuburbanStop(pos.lat, pos.lng);
+  if (!closest || closest.distance > nearestStopRadiusMeters) return null;
+  return closest.name;
+}
+
 // you are here indicator green dot for last stop pulsing dot for next stop and a chasing line between them
-function renderTrainProgressLine(current, next) {
+// isatstop drops the two endpoint layout entirely for a single slower
+// flashing dot on the stop its actually sitting at right now
+function renderTrainProgressLine(current, next, isAtStop = false) {
   if (!next) {
     return `
       <div class="train-progress">
         <div class="train-progress-stop">
           <span class="train-progress-dot current"></span>
           <span class="train-progress-name current">${abbreviateProgressStopName(current.name)}</span>
+        </div>
+      </div>`;
+  }
+  if (isAtStop) {
+    return `
+      <div class="train-progress">
+        <div class="train-progress-stop">
+          <span class="train-progress-dot stopped"></span>
+          <span class="train-progress-name at-stop">${abbreviateProgressStopName(next.name)}</span>
         </div>
       </div>`;
   }
@@ -968,7 +1033,7 @@ function renderTrainRowLiveProgress(scheduleId) {
   if (!pos) return '';
   const cached = suburbanScheduleCache.get(scheduleId);
   const progress = cached ? getTrainProgressStops(cached.route) : null;
-  const progressLine = progress ? renderTrainProgressLine(progress.current, progress.next) : '';
+  const progressLine = progress ? renderTrainProgressLine(progress.current, progress.next, isTrainStoppedAtNextStation(pos)) : '';
   const speedHtml = renderTrainSpeedBadge(pos.speed);
   if (!progressLine && !speedHtml) return '';
   return `<div class="train-live-progress">${progressLine}${speedHtml}</div>`;
@@ -976,22 +1041,47 @@ function renderTrainRowLiveProgress(scheduleId) {
 
 // shown in the sheets own header next to the close button instead of
 // inside the card and bigger and bolder than the compact station panel rows
+// a train with no matched schedule still usually has a next station on the
+// stream itself so that becomes the fallback headline instead of leaving it blank
 function renderLiveTrainTitle(pos) {
   const scheduleId = pos.scheduleId || null;
   const cached = scheduleId ? suburbanScheduleCache.get(scheduleId) : null;
-  if (!cached) return '';
-  const schedule = cached.schedule;
-  const originName = (schedule.origin && (schedule.origin.name || schedule.origin.nameGreek)) || 'Origin';
-  const destName = (schedule.destination && (schedule.destination.name || schedule.destination.nameGreek)) || 'Destination';
-  return `
-    <span class="live-train-title-from">${originName}</span>
-    <svg class="live-train-title-arrow" viewBox="0 0 24 24"><path d="M4 12h14m0 0l-5-5m5 5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <span class="live-train-title-to">${destName}</span>`;
+  if (cached) {
+    const schedule = cached.schedule;
+    const originName = (schedule.origin && (schedule.origin.name || schedule.origin.nameGreek)) || 'Origin';
+    const destName = (schedule.destination && (schedule.destination.name || schedule.destination.nameGreek)) || 'Destination';
+    return `
+      <span class="live-train-title-from">${originName}</span>
+      <svg class="live-train-title-arrow" viewBox="0 0 24 24"><path d="M4 12h14m0 0l-5-5m5 5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="live-train-title-to">${destName}</span>`;
+  }
+  // a stopped train reads oddly with the arrow layout since theres no real
+  // route to point between so this keeps the honest generic label up top
+  // and leaves the actual stopped at name to the bigger detail line below
+  if (getStoppedNearbyStopName(pos)) {
+    return '<span class="live-train-title-unknown">Train of unknown origin and destination</span>';
+  }
+  if (pos.nextStation) {
+    return `
+      <span class="live-train-title-from">Heading to</span>
+      <svg class="live-train-title-arrow" viewBox="0 0 24 24"><path d="M4 12h14m0 0l-5-5m5 5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="live-train-title-to">${pos.nextStation}</span>`;
+  }
+  if (pos.corridor) return `<span class="live-train-title-from">${formatCorridorName(pos.corridor)} corridor</span>`;
+  return '';
+}
+
+// the corridor code the stream tags every position with is shouty and
+// all one word like kiato or chalkida so just tidy the casing up for display
+function formatCorridorName(corridor) {
+  return corridor.split(/[\s_]+/).map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
 }
 
 // hover tooltip for a train marker on the map - schedule is fetched
 // asynchronously so this can be called again once its cached to swap the
-// bare loading state for the real origin and destination
+// bare loading state for the real origin and destination - the richer
+// corridor/next station/speed fallback lives on the live train sheet
+// instead of here so the hover stays a quick glance not a full readout
 function renderLiveTrainTooltip(pos) {
   const cached = pos.scheduleId ? suburbanScheduleCache.get(pos.scheduleId) : null;
   const schedule = cached ? cached.schedule : null;
@@ -1044,11 +1134,30 @@ function renderLiveTrainRow(pos) {
 
     const progress = getTrainProgressStops(cached.route);
     const speedBadge = renderTrainSpeedBadge(pos.speed);
+    const atStop = isTrainStoppedAtNextStation(pos);
+    const progressCaption = atStop ? 'Currently stopped at:' : 'Currently doing the part:';
     progressSection = progress
-      ? `<div class="train-progress-caption">Currently doing the part:</div><div class="train-progress-row">${renderTrainProgressLine(progress.current, progress.next)}${speedBadge}</div>`
+      ? `<div class="train-progress-caption">${progressCaption}</div><div class="train-progress-row">${renderTrainProgressLine(progress.current, progress.next, atStop)}${speedBadge}</div>`
       : '';
   } else if (scheduleId) {
     progressSection = '<div class="train-route-diagram-loading">Loading route…</div>';
+  } else {
+    // no scheduleid at all means the api never matched this one to a
+    // schedule but the stream still tags it with a corridor and a real
+    // speed so show that instead of leaving the whole card blank
+    const stoppedStopName = getStoppedNearbyStopName(pos);
+    const corridorText = pos.corridor ? `${formatCorridorName(pos.corridor)} corridor` : '';
+    const speedBadge = renderTrainSpeedBadge(pos.speed);
+    const caption = stoppedStopName ? 'Currently stopped' : 'No schedule matched yet';
+    // stopped gets the bigger bolder treatment here since the header no
+    // longer says it directly - this detail line is now the one place it shows
+    const detailText = stoppedStopName ? `Stopped at ${stoppedStopName}` : corridorText;
+    const detailClass = stoppedStopName ? 'train-fallback-detail-stopped' : 'train-fallback-detail';
+    if (detailText || speedBadge) {
+      progressSection = `
+        <div class="train-progress-caption">${caption}</div>
+        <div class="train-progress-row">${detailText ? `<span class="${detailClass}">${detailText}</span>` : ''}${speedBadge}</div>`;
+    }
   }
 
   const toggleButton = scheduleId ? `

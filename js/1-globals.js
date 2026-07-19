@@ -116,6 +116,7 @@ let notificationTimeout = null;
 
 let suburbanGroupColors = new Map();
 let suburbanStopGroupsByGovId = new Map();
+let suburbanStopCoordsByGovId = new Map();
 
 const metroColors = {
   green: '#1f8136ff', red: '#b80600ff', blue: '#004c9eff'

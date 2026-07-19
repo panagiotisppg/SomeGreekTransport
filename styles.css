@@ -1413,6 +1413,32 @@ input[type="text"] {
     margin-bottom: 0;
 }
 
+/* fills the same slot as the progress line for a train with no matched
+   schedule to show the trip so theres just a corridor name instead */
+.train-fallback-detail {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* the stopped at name used to be the sheets bold header text so it stays
+   noticeably bigger and bolder than the plain corridor line here too */
+.train-fallback-detail-stopped {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .train-platform {
     font-size: 10px;
     color: var(--text-3);
@@ -1726,11 +1752,27 @@ input[type="text"] {
     min-width: 0;
 }
 
+/* the first half keeps its full width and only the second one truncates
+   so a short from label or origin name never gets squeezed for no reason */
+.live-train-title-from {
+    flex-shrink: 0;
+    max-width: 55%;
+}
+
 .live-train-title-arrow {
     width: 15px;
     height: 15px;
     color: var(--text-3);
     flex-shrink: 0;
+}
+
+/* a real route gets the big bold arrow layout above but a train with
+   nothing matched at all gets this quieter honest label instead */
+.live-train-title-unknown {
+    font-size: 14px;
+    font-weight: 500;
+    font-style: italic;
+    color: var(--text-3);
 }
 
 #live-train-close {
@@ -2578,6 +2620,16 @@ input:checked + .slider:before { transform: translateX(20px); }
 
 .train-progress-name.passed { color: var(--text-3); font-weight: 500; }
 .train-progress-name.current { color: var(--text-1); font-weight: 700; }
+
+/* same green as current but a slower calmer flash since the train has
+   actually arrived instead of still approaching */
+.train-progress-dot.stopped {
+    background: var(--success-2);
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+    animation: train-pulse 2.6s ease-in-out infinite;
+}
+
+.train-progress-name.at-stop { color: var(--text-1); font-weight: 700; }
 
 .train-progress-track {
     flex: 1 1 auto;

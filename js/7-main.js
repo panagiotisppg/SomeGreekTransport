@@ -191,8 +191,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
       suburbanGroupColors = new Map(dataCache.trainsData.groups.map(g => [g.name, g.color]));
       suburbanStopGroupsByGovId = new Map();
+      suburbanStopCoordsByGovId = new Map();
       dataCache.trainsData.stops.forEach(s => {
-        (s.govIds || []).forEach(govId => suburbanStopGroupsByGovId.set(govId, s.groups || []));
+        (s.govIds || []).forEach(govId => {
+          suburbanStopGroupsByGovId.set(govId, s.groups || []);
+          // lat/lng stored in that order since the live streams own coords come that way too
+          if (Array.isArray(s.coords)) suburbanStopCoordsByGovId.set(govId, { name: s.name, lat: s.coords[1], lng: s.coords[0] });
+        });
       });
       const suburbanLinesGeoJSON = {
         type: "FeatureCollection",
