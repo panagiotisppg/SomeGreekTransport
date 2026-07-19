@@ -172,7 +172,12 @@ function mergeTrainEvents(arrivals, departures) {
   return merged;
 }
 
-function renderTrainLeg(leg, label, showStatus = true, reserveDelaySpace = false) {
+// name is optional - the live sheet uses it to show the actual station
+// name under the role label since the station panel rows leave it out
+// as the label there already says which station its about
+// avgdelay is optional too - once a leg has its own real actualtime that
+// always wins and the average only fills in a guess for legs still in the future
+function renderTrainLeg(leg, label, showStatus = true, reserveDelaySpace = false, name = null, avgDelay = 0) {
   if (!leg) return '';
   const diff = computeDelayMinutes(leg);
   const scheduled = formatLocalTime(leg.scheduledTime);
@@ -180,13 +185,27 @@ function renderTrainLeg(leg, label, showStatus = true, reserveDelaySpace = false
   const delayChip = diff > 0 ? `<span class="train-delay-chip late">+${diff}m</span>`
                    : diff < 0 ? `<span class="train-delay-chip early">${diff}m</span>`
                    : (reserveDelaySpace ? '<span class="train-delay-chip placeholder"></span>' : '');
+
+  // the station arrivals/departures endpoint always fills actualtime with a
+  // copy of scheduledtime before the real event happens under a bunch of
+  // different status strings like scheduled approaching boarding and ready
+  // the schedule endpoint instead leaves actualtime genuinely null until then
+  // so checking both shapes is the only reliable hasnt happened yet signal
+  const hasNoRealActual = !leg.actualTime || leg.actualTime === leg.scheduledTime;
+  const roundedAvg = Math.round(avgDelay);
+  const estimate = (hasNoRealActual && roundedAvg !== 0)
+    ? `<span class="train-time-estimate">average delays: ${roundedAvg > 0 ? '+' : ''}${roundedAvg}m, estimated ${formatLocalTime(new Date(new Date(leg.scheduledTime).getTime() + roundedAvg * 60000).toISOString())}</span>`
+    : '';
+
   return `
     <div class="train-time-block">
       <span class="train-time-label">${label}</span>
+      ${name ? `<span class="train-endpoint-name">${name}</span>` : ''}
       <span class="train-time-value">
         ${actual ? `<span class="train-time-scheduled">${scheduled}</span><span class="train-time-actual">${actual}</span>` : `<span class="train-time-actual">${scheduled}</span>`}
         ${delayChip}
       </span>
+      ${estimate}
       ${showStatus ? `<span class="train-time-status status-${leg.status || 'unknown'}">${getStatusLabel(leg.status)}</span>` : ''}
       ${leg.platform ? `<span class="train-platform">Plat. ${leg.platform}</span>` : ''}
     </div>`;
@@ -275,12 +294,18 @@ function identifyTrainLineGroup(route) {
 // no stop dot ever flashes - instead the one connecting line between the
 // last confirmed stop and the next one gets a smooth car indicator style
 // chase so its clear where the train is heading without every dot pulsing
-function renderRouteStop(stop, isThisStation, isChasingSegment) {
+function renderRouteStop(stop, isThisStation, isChasingSegment, avgDelay = 0) {
   const time = stop.role === 'origin' ? stop.scheduledDeparture : stop.scheduledArrival;
   const actual = stop.role === 'origin' ? stop.actualDeparture : stop.actualArrival;
   const diff = diffMinutes(time, actual);
   const delayChip = diff > 0 ? `<span class="train-delay-chip late">+${diff}m</span>`
                    : diff < 0 ? `<span class="train-delay-chip early">${diff}m</span>` : '';
+
+  const roundedAvg = Math.round(avgDelay);
+  const estimate = stop.state === 'upcoming' && roundedAvg !== 0
+    ? `<span class="route-stop-estimate">(${roundedAvg > 0 ? '+' : ''}${roundedAvg}m, ~${formatLocalTime(new Date(new Date(time).getTime() + roundedAvg * 60000).toISOString())})</span>`
+    : '';
+
   return `
     <div class="route-stop state-${stop.state}${isThisStation ? ' is-this-station' : ''}" data-station-id="${stop.stationId}">
       <div class="route-stop-track">
@@ -289,9 +314,26 @@ function renderRouteStop(stop, isThisStation, isChasingSegment) {
       </div>
       <div class="route-stop-body">
         <span class="route-stop-name">${stop.name}</span>
-        <span class="route-stop-time">${formatLocalTime(time)}${delayChip}${stop.platform ? ` <span class="train-platform">Plat. ${stop.platform}</span>` : ''}</span>
+        <span class="route-stop-time">${formatLocalTime(time)}${delayChip}${estimate}${stop.platform ? ` <span class="train-platform">Plat. ${stop.platform}</span>` : ''}</span>
       </div>
     </div>`;
+}
+
+// a delay picked up early usually sticks for the rest of the trip so the
+// scheduled time alone is misleading for stops further down the line -
+// average the delay across whatever stops already have real data and use
+// that to give upcoming stops an estimated time too
+function getStopDelayMinutes(stop) {
+  const time = stop.role === 'origin' ? stop.scheduledDeparture : stop.scheduledArrival;
+  const actual = stop.role === 'origin' ? stop.actualDeparture : stop.actualArrival;
+  if (!actual) return null;
+  return diffMinutes(time, actual);
+}
+
+function computeAverageRouteDelay(route) {
+  const delays = route.map(getStopDelayMinutes).filter(d => d !== null);
+  if (!delays.length) return 0;
+  return delays.reduce((sum, d) => sum + d, 0) / delays.length;
 }
 
 // the chasing segment is the last passed stops own connector line since
@@ -304,7 +346,8 @@ function isRouteChasingSegment(route, i) {
 
 function renderRouteTimeline(route, currentGovIds) {
   const govIdSet = new Set(currentGovIds || []);
-  const rows = route.map((stop, i) => renderRouteStop(stop, govIdSet.has(stop.stationId), isRouteChasingSegment(route, i))).join('');
+  const avgDelay = computeAverageRouteDelay(route);
+  const rows = route.map((stop, i) => renderRouteStop(stop, govIdSet.has(stop.stationId), isRouteChasingSegment(route, i), avgDelay)).join('');
   return `<div class="route-timeline">${rows}</div>`;
 }
 
@@ -318,6 +361,7 @@ function updateRouteTimelineInPlace(routeDetailsEl, route, currentGovIds) {
     return;
   }
   const govIdSet = new Set(currentGovIds || []);
+  const avgDelay = computeAverageRouteDelay(route);
   for (let i = 0; i < route.length; i++) {
     const stop = route[i];
     const el = existingStops[i];
@@ -326,7 +370,7 @@ function updateRouteTimelineInPlace(routeDetailsEl, route, currentGovIds) {
       return;
     }
     const temp = document.createElement('div');
-    temp.innerHTML = renderRouteStop(stop, govIdSet.has(stop.stationId), isRouteChasingSegment(route, i)).trim();
+    temp.innerHTML = renderRouteStop(stop, govIdSet.has(stop.stationId), isRouteChasingSegment(route, i), avgDelay).trim();
     const fresh = temp.firstElementChild;
     el.className = fresh.className;
     const trackEl = el.querySelector('.route-stop-track');
@@ -373,6 +417,11 @@ function renderTrainRow(event) {
   const arrivalLabel = hasPassedOurStation ? `Arrived at ${stationName}` : `Arriving at ${stationName}`;
   const departureLabel = hasPassedOurStation ? `Departed ${stationName}` : `Departing ${stationName}`;
   const liveProgressSection = isLiveOnMap ? renderTrainRowLiveProgress(scheduleId) : '';
+  // route data needed for the average is only ever cached for a not yet expanded
+  // row if its also live on the map since getlivetraincolor already fetches it
+  // for those to pick the line color so this reuses that instead of a fresh fetch
+  const cachedSchedule = scheduleId ? suburbanScheduleCache.get(scheduleId) : null;
+  const avgDelay = cachedSchedule ? computeAverageRouteDelay(cachedSchedule.route) : 0;
   return `
     <div class="train-row${alreadyPassedClass}" data-schedule-id="${scheduleId || ''}" data-row-key="${trainRowKey(event)}">
       <div class="train-route ${routeClass}">
@@ -390,12 +439,27 @@ function renderTrainRow(event) {
         </div>
       </div>
       <div class="train-times">
-        ${renderTrainLeg(event.arrival, arrivalLabel, false)}
-        ${renderTrainLeg(event.departure, departureLabel, false)}
+        ${renderTrainLeg(event.arrival, arrivalLabel, false, false, null, avgDelay)}
+        ${renderTrainLeg(event.departure, departureLabel, false, false, null, avgDelay)}
       </div>
       ${liveProgressSection}
       ${scheduleId ? '<div class="train-route-details" hidden></div>' : ''}
     </div>`;
+}
+
+// the up front prefetch in fetchandrendersuburbanarrivals already warms the
+// cache for every row but if that one request failed or was still in
+// flight the arriving/departing boxes render with no average to show
+// once the dropdown toggle fetches the schedule for itself patch those
+// boxes in place too instead of leaving them stuck without an estimate
+function refreshTrainRowTimesEstimate(row, scheduleId) {
+  const event = currentSuburbanTrainEvents.find(e => e.scheduleId === scheduleId);
+  const timesEl = row.querySelector(':scope > .train-times');
+  if (!event || !timesEl) return;
+  const temp = document.createElement('div');
+  temp.innerHTML = renderTrainRow(event).trim();
+  const freshTimes = temp.firstElementChild.querySelector(':scope > .train-times');
+  if (freshTimes && freshTimes.innerHTML !== timesEl.innerHTML) timesEl.replaceWith(freshTimes);
 }
 
 // updates a row in place without replacing the node and keeps the route dropdown open if it was expanded
@@ -619,6 +683,9 @@ function refreshLiveTrainRowProgressSections() {
   contentArea.querySelectorAll(':scope .train-row[data-schedule-id]').forEach((row) => {
     const scheduleId = row.dataset.scheduleId;
     if (!scheduleId) return;
+    // also catches an average delay that only became available after this
+    // row already rendered - cheap dom patch with no extra network requests
+    refreshTrainRowTimesEstimate(row, scheduleId);
     const freshHtml = renderTrainRowLiveProgress(scheduleId).trim();
     const existing = row.querySelector(':scope > .train-live-progress');
     if (!freshHtml) {
@@ -749,6 +816,7 @@ document.getElementById('suburban-station-content').addEventListener('click', as
   const cached = suburbanScheduleCache.get(scheduleId);
   if (cached) {
     details.innerHTML = renderRouteTimeline(cached.route, currentSuburbanProperties ? currentSuburbanProperties.govIds : []);
+    refreshTrainRowTimesEstimate(row, scheduleId);
     return;
   }
 
@@ -762,6 +830,7 @@ document.getElementById('suburban-station-content').addEventListener('click', as
     const route = buildFullRoute(schedule);
     suburbanScheduleCache.set(scheduleId, { schedule, route });
     details.innerHTML = renderRouteTimeline(route, currentSuburbanProperties ? currentSuburbanProperties.govIds : []);
+    refreshTrainRowTimesEstimate(row, scheduleId);
   } catch (error) {
     console.error(`Failed to fetch schedule ${scheduleId}:`, error);
     details.innerHTML = '<div class="info-message">Could not load full route.</div>';
@@ -871,7 +940,7 @@ function renderTrainProgressLine(current, next) {
         <span class="train-progress-dot passed"></span>
         <span class="train-progress-name passed">${abbreviateProgressStopName(current.name)}</span>
       </div>
-      <div class="train-progress-track"></div>
+      <div class="train-progress-track" style="--chase-delay:-${Date.now() % 1600}ms"></div>
       <div class="train-progress-stop">
         <span class="train-progress-dot current"></span>
         <span class="train-progress-name current">${abbreviateProgressStopName(next.name)}</span>
@@ -920,6 +989,25 @@ function renderLiveTrainTitle(pos) {
     <span class="live-train-title-to">${destName}</span>`;
 }
 
+// hover tooltip for a train marker on the map - schedule is fetched
+// asynchronously so this can be called again once its cached to swap the
+// bare loading state for the real origin and destination
+function renderLiveTrainTooltip(pos) {
+  const cached = pos.scheduleId ? suburbanScheduleCache.get(pos.scheduleId) : null;
+  const schedule = cached ? cached.schedule : null;
+  const originName = schedule && schedule.origin && (schedule.origin.name || schedule.origin.nameGreek);
+  const destName = schedule && schedule.destination && (schedule.destination.name || schedule.destination.nameGreek);
+  if (!originName || !destName) {
+    return '<div class="live-train-tooltip unknown">Train of unknown origin and destination</div>';
+  }
+  return `
+    <div class="live-train-tooltip">
+      <span>${originName}</span>
+      <svg class="live-train-tooltip-arrow" viewBox="0 0 24 24"><path d="M4 12h14m0 0l-5-5m5 5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>${destName}</span>
+    </div>`;
+}
+
 // same card style as the station panel rows but without the title row
 // since that now lives in the sheets own header via renderlivetraintitle
 function renderLiveTrainRow(pos) {
@@ -939,20 +1027,19 @@ function renderLiveTrainRow(pos) {
     const originName = (schedule.origin && (schedule.origin.name || schedule.origin.nameGreek)) || 'Origin';
     const destName = (schedule.destination && (schedule.destination.name || schedule.destination.nameGreek)) || 'Destination';
 
+    const departureLeg = {
+      scheduledTime: schedule.scheduledDeparture, actualTime: schedule.actualDeparture,
+      status: schedule.actualDeparture ? 'departed' : 'scheduled', platform: null,
+    };
+    const arrivalLeg = {
+      scheduledTime: schedule.scheduledArrival, actualTime: schedule.actualArrival,
+      status: schedule.actualArrival ? 'arrived' : (schedule.status === 'in_progress' ? 'approaching' : 'scheduled'), platform: null,
+    };
+    const avgDelay = computeAverageRouteDelay(cached.route);
     timesRow = `
       <div class="train-times">
-        <div class="train-time-block">
-          <span class="train-time-value">
-            <span class="train-endpoint-name">${originName}</span>
-            <span class="train-time-label">(αφετηρια)</span>
-          </span>
-        </div>
-        <div class="train-time-block">
-          <span class="train-time-value">
-            <span class="train-endpoint-name">${destName}</span>
-            <span class="train-time-label">(τερμα)</span>
-          </span>
-        </div>
+        ${renderTrainLeg(departureLeg, 'αφετηρια', false, true, originName, avgDelay)}
+        ${renderTrainLeg(arrivalLeg, 'τερμα', false, true, destName, avgDelay)}
       </div>`;
 
     const progress = getTrainProgressStops(cached.route);
@@ -1153,10 +1240,13 @@ function updateLiveTrainPositions(positions) {
       marker = liveTrainMarkers.get(id);
       marker.setLatLng(latlng);
       marker.setIcon(createLiveTrainIcon(heading, color, id === currentLiveTrainSheetId));
+      // schedule fetch is async so the origin/destination may only become
+      // known a tick or two after the marker itself was first drawn
+      marker.setTooltipContent(renderLiveTrainTooltip(pos));
       updateLiveTrainSheetIfOpen(id, pos);
     } else {
       marker = createLiveTrainMarker(latlng, heading, color);
-      marker.bindTooltip(pos.trainNumber || pos.name || '', { direction: 'top', offset: [0, -6] });
+      marker.bindTooltip(renderLiveTrainTooltip(pos), { direction: 'top', offset: [0, -6], className: 'live-train-tooltip-wrapper' });
       marker.on('click', () => openLiveTrainSheet(id));
       marker.addTo(map);
       liveTrainMarkers.set(id, marker);

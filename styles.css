@@ -1298,6 +1298,15 @@ input[type="text"] {
    blocks stay evenly aligned instead of one looking wider than the other */
 .train-delay-chip.placeholder { background: transparent; visibility: hidden; }
 
+/* estimated delay for a leg that hasnt happened yet based on the average
+   delay seen so far on this trip - own row underneath the time so it never
+   fights the real train-delay-chip for space once that leg actually lands */
+.train-time-estimate {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-2);
+}
+
 .train-time-status {
     font-size: 11px;
     font-weight: 600;
@@ -1380,7 +1389,9 @@ input[type="text"] {
    shrinks to make room for the (αφετηρία)/(τέρμα) tag next to it instead
    of the tag wrapping onto its own line */
 .train-endpoint-name {
-    flex: 1 1 auto;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-1);
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1566,6 +1577,18 @@ input[type="text"] {
 }
 
 .route-stop.state-upcoming .route-stop-name { color: var(--text-3); }
+
+/* estimated time for a stop the train hasnt reached yet based on the
+   average delay seen so far not a real reported delay so it stays
+   noticeably lighter and smaller than the actual train-delay-chip */
+.route-stop-estimate {
+    font-size: 9px;
+    font-weight: 500;
+    font-style: italic;
+    color: var(--text-3);
+    opacity: 0.75;
+    white-space: nowrap;
+}
 
 .route-stop-time {
     font-size: 10px;
@@ -2464,6 +2487,46 @@ input:checked + .slider:before { transform: translateX(20px); }
 .bus-popup .leaflet-popup-tip { background: rgba(15, 23, 42, 0.93); }
 .bus-popup a.leaflet-popup-close-button { display: none; }
 
+/* ─── live train hover tooltip ──────────────────────────────────────────── */
+.leaflet-tooltip.live-train-tooltip-wrapper {
+    background: rgba(15, 23, 42, 0.93);
+    color: #f1f5f9;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: var(--r-sm);
+    box-shadow: var(--shadow-md);
+    padding: 5px 10px;
+    font-family: var(--font);
+}
+
+.leaflet-tooltip.live-train-tooltip-wrapper::before {
+    border-top-color: rgba(15, 23, 42, 0.93);
+}
+
+.live-train-tooltip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.live-train-tooltip-arrow {
+    width: 12px;
+    height: 12px;
+    color: #94a3b8;
+    flex-shrink: 0;
+}
+
+.live-train-tooltip.unknown {
+    font-weight: 500;
+    font-style: italic;
+    color: #94a3b8;
+    white-space: normal;
+    max-width: 160px;
+    text-align: center;
+}
+
 .train-route-diagram-loading {
     font-size: 11px;
     color: #94a3b8;
@@ -2535,6 +2598,7 @@ input:checked + .slider:before { transform: translateX(20px); }
     height: 100%;
     background: linear-gradient(90deg, transparent, var(--success-2), transparent);
     animation: train-progress-chase 1.6s linear infinite;
+    animation-delay: var(--chase-delay, 0ms);
 }
 
 .train-progress-caption {
