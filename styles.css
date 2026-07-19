@@ -1215,13 +1215,13 @@ input[type="text"] {
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 14px;
+    font-weight: 700;
     color: var(--text-1);
-    margin-bottom: 4px;
+    margin-bottom: 5px;
 }
 
-.train-route-arrow { width: 12px; height: 12px; color: var(--text-3); flex-shrink: 0; }
+.train-route-arrow { width: 14px; height: 14px; color: var(--text-3); flex-shrink: 0; }
 
 .train-route.is-origin .train-route-from,
 .train-route.is-terminus .train-route-to {
@@ -1339,6 +1339,67 @@ input[type="text"] {
 @keyframes live-train-sonar {
     0%   { transform: scale(1); opacity: 0.9; }
     100% { transform: scale(3.2); opacity: 0; }
+}
+
+/* only shows up on a station panel row whose train is also live on the
+   map - current/next stop reused from the live sheets own progress line
+   plus a speed readout straight from the live stream refreshed every few
+   seconds independently of the rows own 60s arrivals data */
+.train-live-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--sep);
+}
+
+.train-live-progress .train-progress {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+.train-speed {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-2);
+}
+
+.train-speed svg {
+    width: 14px;
+    height: 14px;
+    color: var(--accent-2);
+}
+
+/* the live sheets own start/stop names swapped in for the time value slot
+   shrinks to make room for the (αφετηρία)/(τέρμα) tag next to it instead
+   of the tag wrapping onto its own line */
+.train-endpoint-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* puts the speed badge next to the current/next stop progress line
+   instead of the times boxes above same row layout as the station
+   panels own train-live-progress just without its top divider line */
+.train-progress-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.train-progress-row .train-progress {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-bottom: 0;
 }
 
 .train-platform {

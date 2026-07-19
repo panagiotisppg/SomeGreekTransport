@@ -354,7 +354,8 @@ function renderTrainRow(event) {
   const toLabel = hasSchedule ? (event.destinationName || 'Final stop') : (event.to || 'Final stop');
   const routeClass = hasSchedule ? '' : (!event.arrival ? 'is-origin' : (!event.departure ? 'is-terminus' : ''));
   const scheduleId = event.scheduleId || null;
-  const alreadyPassedClass = event.ourStationState === 'passed' ? ' is-already-passed' : '';
+  const hasPassedOurStation = event.ourStationState === 'passed';
+  const alreadyPassedClass = hasPassedOurStation ? ' is-already-passed' : '';
   const isLiveOnMap = !!(scheduleId && liveTrainScheduleIdSet.has(scheduleId));
   const liveDot = isLiveOnMap ? '<span class="train-live-dot" title="Live on map"></span>' : '';
   const locateButton = isLiveOnMap ? `
@@ -368,8 +369,17 @@ function renderTrainRow(event) {
   const serviceTypeBadge = event.lineGroup
     ? `<span class="suburban-line-pill train-line-service-pill" style="background:${suburbanGroupColors.get(event.lineGroup) || color}">${event.lineGroup} ${(event.serviceType || '').toUpperCase()}</span>`
     : `<span class="train-service-type" style="color:${color}">${event.serviceType || ''}</span>`;
+  const stationName = (currentSuburbanProperties && currentSuburbanProperties.name) || 'this stop';
+  const arrivalLabel = hasPassedOurStation ? `Arrived at ${stationName}` : `Arriving at ${stationName}`;
+  const departureLabel = hasPassedOurStation ? `Departed ${stationName}` : `Departing ${stationName}`;
+  const liveProgressSection = isLiveOnMap ? renderTrainRowLiveProgress(scheduleId) : '';
   return `
     <div class="train-row${alreadyPassedClass}" data-schedule-id="${scheduleId || ''}" data-row-key="${trainRowKey(event)}">
+      <div class="train-route ${routeClass}">
+        <span class="train-route-from">${fromLabel}</span>
+        <svg class="train-route-arrow" viewBox="0 0 24 24"><path d="M4 12h14m0 0l-5-5m5 5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="train-route-to">${toLabel}</span>
+      </div>
       <div class="train-row-top">
         ${serviceTypeBadge}
         <span class="train-number-pill" style="background:${color}">${event.trainNumber}</span>
@@ -379,15 +389,11 @@ function renderTrainRow(event) {
           ${toggleButton}
         </div>
       </div>
-      <div class="train-route ${routeClass}">
-        <span class="train-route-from">${fromLabel}</span>
-        <svg class="train-route-arrow" viewBox="0 0 24 24"><path d="M4 12h14m0 0l-5-5m5 5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <span class="train-route-to">${toLabel}</span>
-      </div>
       <div class="train-times">
-        ${renderTrainLeg(event.arrival, 'Arrival')}
-        ${renderTrainLeg(event.departure, 'Departure')}
+        ${renderTrainLeg(event.arrival, arrivalLabel, false)}
+        ${renderTrainLeg(event.departure, departureLabel, false)}
       </div>
+      ${liveProgressSection}
       ${scheduleId ? '<div class="train-route-details" hidden></div>' : ''}
     </div>`;
 }
@@ -602,6 +608,35 @@ function showSuburbanInfo(properties) {
   fetchAndRenderSuburbanArrivals(properties, true);
 }
 
+// live position data speed and next stop already streams in continuously
+// on its own so this doesnt need any new network requests just rereads
+// whatever the sse stream already put in livetrainpositionsbyscheduleid
+// and patches the affected rows in place every few seconds instead of
+// waiting for the full 60s arrivals refresh
+function refreshLiveTrainRowProgressSections() {
+  const contentArea = document.getElementById('suburban-station-content');
+  if (!contentArea) return;
+  contentArea.querySelectorAll(':scope .train-row[data-schedule-id]').forEach((row) => {
+    const scheduleId = row.dataset.scheduleId;
+    if (!scheduleId) return;
+    const freshHtml = renderTrainRowLiveProgress(scheduleId).trim();
+    const existing = row.querySelector(':scope > .train-live-progress');
+    if (!freshHtml) {
+      if (existing) existing.remove();
+      return;
+    }
+    const temp = document.createElement('div');
+    temp.innerHTML = freshHtml;
+    const fresh = temp.firstElementChild;
+    if (existing) {
+      existing.replaceWith(fresh);
+    } else {
+      const anchor = row.querySelector(':scope > .train-route-details');
+      row.insertBefore(fresh, anchor || null);
+    }
+  });
+}
+
 function startSuburbanTimer() {
   stopSuburbanTimer();
   if (!currentSuburbanProperties) return;
@@ -620,12 +655,17 @@ function startSuburbanTimer() {
   }
   suburbanRefreshIntervalId = setInterval(() => { timeLeft--; updateTimer(); }, 1000);
   updateTimer();
+  suburbanLiveProgressIntervalId = setInterval(refreshLiveTrainRowProgressSections, 3000);
 }
 
 function stopSuburbanTimer() {
   if (suburbanRefreshIntervalId) {
     clearInterval(suburbanRefreshIntervalId);
     suburbanRefreshIntervalId = null;
+  }
+  if (suburbanLiveProgressIntervalId) {
+    clearInterval(suburbanLiveProgressIntervalId);
+    suburbanLiveProgressIntervalId = null;
   }
   suburbanRefreshContainer.classList.remove('visible');
 }
@@ -839,6 +879,32 @@ function renderTrainProgressLine(current, next) {
     </div>`;
 }
 
+// only for a station panel row whose train is also being tracked live on
+// the map right now - the live stream already gives us a real speed and
+// next station directly so nothing here needs calculating from distance
+// shared by the station panel row and the live sheet - the live stream
+// already gives a real speed directly so theres nothing to calculate
+function renderTrainSpeedBadge(speed) {
+  if (typeof speed !== 'number' || isNaN(speed)) return '';
+  return `
+    <div class="train-speed">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15a8 8 0 1 1 16 0"/><path d="M12 15l4-5"/><circle cx="12" cy="15" r="1.3" fill="currentColor" stroke="none"/></svg>
+      <span>${Math.round(speed)} km/h</span>
+    </div>`;
+}
+
+function renderTrainRowLiveProgress(scheduleId) {
+  if (!scheduleId) return '';
+  const pos = liveTrainPositionsByScheduleId.get(scheduleId);
+  if (!pos) return '';
+  const cached = suburbanScheduleCache.get(scheduleId);
+  const progress = cached ? getTrainProgressStops(cached.route) : null;
+  const progressLine = progress ? renderTrainProgressLine(progress.current, progress.next) : '';
+  const speedHtml = renderTrainSpeedBadge(pos.speed);
+  if (!progressLine && !speedHtml) return '';
+  return `<div class="train-live-progress">${progressLine}${speedHtml}</div>`;
+}
+
 // shown in the sheets own header next to the close button instead of
 // inside the card and bigger and bolder than the compact station panel rows
 function renderLiveTrainTitle(pos) {
@@ -873,23 +939,26 @@ function renderLiveTrainRow(pos) {
     const originName = (schedule.origin && (schedule.origin.name || schedule.origin.nameGreek)) || 'Origin';
     const destName = (schedule.destination && (schedule.destination.name || schedule.destination.nameGreek)) || 'Destination';
 
-    const departureLeg = {
-      scheduledTime: schedule.scheduledDeparture, actualTime: schedule.actualDeparture,
-      status: schedule.actualDeparture ? 'departed' : 'scheduled', platform: null,
-    };
-    const arrivalLeg = {
-      scheduledTime: schedule.scheduledArrival, actualTime: schedule.actualArrival,
-      status: schedule.actualArrival ? 'arrived' : (schedule.status === 'in_progress' ? 'approaching' : 'scheduled'), platform: null,
-    };
     timesRow = `
       <div class="train-times">
-        ${renderTrainLeg(departureLeg, originName, false, true)}
-        ${renderTrainLeg(arrivalLeg, destName, false, true)}
+        <div class="train-time-block">
+          <span class="train-time-value">
+            <span class="train-endpoint-name">${originName}</span>
+            <span class="train-time-label">(αφετηρια)</span>
+          </span>
+        </div>
+        <div class="train-time-block">
+          <span class="train-time-value">
+            <span class="train-endpoint-name">${destName}</span>
+            <span class="train-time-label">(τερμα)</span>
+          </span>
+        </div>
       </div>`;
 
     const progress = getTrainProgressStops(cached.route);
+    const speedBadge = renderTrainSpeedBadge(pos.speed);
     progressSection = progress
-      ? `<div class="train-progress-caption">Currently doing the part:</div>${renderTrainProgressLine(progress.current, progress.next)}`
+      ? `<div class="train-progress-caption">Currently doing the part:</div><div class="train-progress-row">${renderTrainProgressLine(progress.current, progress.next)}${speedBadge}</div>`
       : '';
   } else if (scheduleId) {
     progressSection = '<div class="train-route-diagram-loading">Loading route…</div>';
@@ -983,7 +1052,7 @@ function closeLiveTrainSheet() {
 
 // every section except train-route-details gets replaced fresh each tick
 // the dropdown is never detached or rebuilt so its scroll position survives
-const LIVE_ROW_VOLATILE_SECTIONS = ['train-row-top', 'train-times', 'train-progress-caption', 'train-progress', 'train-route-diagram-loading'];
+const LIVE_ROW_VOLATILE_SECTIONS = ['train-row-top', 'train-times', 'train-progress-caption', 'train-progress-row', 'train-route-diagram-loading'];
 
 // only refreshes the sheet if its currently showing this exact train
 function updateLiveTrainSheetIfOpen(id, pos) {
@@ -1069,6 +1138,7 @@ function updateLiveTrainPositions(positions) {
   const seenIds = new Set();
   liveTrainScheduleIdSet.clear();
   liveTrainMarkersByScheduleId.clear();
+  liveTrainPositionsByScheduleId.clear();
   positions.forEach((pos) => {
     if (typeof pos.lat !== 'number' || typeof pos.lng !== 'number') return;
     const id = pos.id || pos.trainId;
@@ -1094,6 +1164,7 @@ function updateLiveTrainPositions(positions) {
     if (pos.scheduleId) {
       liveTrainScheduleIdSet.add(pos.scheduleId);
       liveTrainMarkersByScheduleId.set(pos.scheduleId, marker);
+      liveTrainPositionsByScheduleId.set(pos.scheduleId, pos);
     }
   });
 
