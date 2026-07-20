@@ -995,6 +995,7 @@ function renderTrainProgressLine(current, next, isAtStop = false) {
       <div class="train-progress">
         <div class="train-progress-stop">
           <span class="train-progress-dot stopped"></span>
+          <span class="train-progress-stopped-label">Currently stopped at</span>
           <span class="train-progress-name at-stop">${abbreviateProgressStopName(next.name)}</span>
         </div>
       </div>`;
@@ -1135,9 +1136,11 @@ function renderLiveTrainRow(pos) {
     const progress = getTrainProgressStops(cached.route);
     const speedBadge = renderTrainSpeedBadge(pos.speed);
     const atStop = isTrainStoppedAtNextStation(pos);
-    const progressCaption = atStop ? 'Currently stopped at:' : 'Currently doing the part:';
+    // the row itself now says currently stopped at directly so the caption
+    // above it would just repeat that only the moving state still needs one
+    const progressCaption = atStop ? '' : '<div class="train-progress-caption">Currently doing the part:</div>';
     progressSection = progress
-      ? `<div class="train-progress-caption">${progressCaption}</div><div class="train-progress-row">${renderTrainProgressLine(progress.current, progress.next, atStop)}${speedBadge}</div>`
+      ? `${progressCaption}<div class="train-progress-row">${renderTrainProgressLine(progress.current, progress.next, atStop)}${speedBadge}</div>`
       : '';
   } else if (scheduleId) {
     progressSection = '<div class="train-route-diagram-loading">Loading route…</div>';

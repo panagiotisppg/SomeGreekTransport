@@ -2631,6 +2631,16 @@ input:checked + .slider:before { transform: translateX(20px); }
 
 .train-progress-name.at-stop { color: var(--text-1); font-weight: 700; }
 
+/* sits between the dot and the bold station name so the whole line reads
+   as one sentence instead of needing a separate caption above it */
+.train-progress-stopped-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-3);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
 .train-progress-track {
     flex: 1 1 auto;
     min-width: 20px;
