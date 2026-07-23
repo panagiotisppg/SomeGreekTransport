@@ -209,7 +209,7 @@ document.addEventListener("DOMContentLoaded", () => {
           }))
         ),
       };
-      const suburbanStopsGeoJSON = {
+      suburbanStopsGeoJSON = {
         type: "FeatureCollection",
         features: dataCache.trainsData.stops.map(s => ({
           type: "Feature",
@@ -217,6 +217,30 @@ document.addEventListener("DOMContentLoaded", () => {
           geometry: { type: "Point", coordinates: s.coords },
         })),
       };
+      // this local dataset only ever stores the stops transliterated/english
+      // name - backfills the real greek spelling for search by cross
+      // referencing the same corridor-stations endpoint (and the same
+      // government station ids) the train timetable board already uses,
+      // caching it into timetableCorridors too so opening the board later
+      // skips its own now-redundant fetch. non-blocking since this only
+      // improves search, nothing here needs to hold up the rest of the app
+      fetch(`${PROXY_URL}${encodeURIComponent('https://railway.gov.gr/api/public/corridor-stations')}`)
+        .then(res => res.json())
+        .then(data => {
+          timetableCorridors = data.corridors || [];
+          const govIdToGreekName = new Map();
+          timetableCorridors.forEach(corridor => {
+            (corridor.stations || []).forEach(s => {
+              const ids = (s.stationIds && s.stationIds.length) ? s.stationIds : [s.stationId];
+              ids.forEach(id => { if (id && s.nameGreek) govIdToGreekName.set(id, s.nameGreek); });
+            });
+          });
+          suburbanStopsGeoJSON.features.forEach(feature => {
+            const greekName = (feature.properties.govIds || []).map(id => govIdToGreekName.get(id)).find(Boolean);
+            if (greekName) feature.properties.nameGreek = greekName;
+          });
+        })
+        .catch(err => console.error('Failed to load greek station names for search:', err));
       suburbanLayer = L.geoJSON(suburbanLinesGeoJSON, {
         style: (feature) => ({ color: feature.properties.color || '#A9A9A9', weight: 3.5, opacity: 0.75 }),
         pane: 'suburbanPane'

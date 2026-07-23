@@ -407,6 +407,20 @@ input[type="text"] {
     flex-shrink: 0;
 }
 
+/* train/suburban stops dont have street data, so this takes the street
+   texts place - one pill per line group instead, wrapping if a stop has
+   several the way the station panels own line list already does */
+.search-result-lines {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+    margin-left: auto;
+    padding-left: 10px;
+    flex-shrink: 0;
+    max-width: 55%;
+}
+
 .search-result-info-button {
     background-color: var(--accent);
     color: white;

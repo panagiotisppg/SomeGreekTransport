@@ -114,6 +114,7 @@ let routeInfoMap = new Map();
 let isClearing = false;
 let allLinesData = [];
 let mergedStopsGeoJSON = { features: [] };
+let suburbanStopsGeoJSON = { features: [] };
 let stopStreetmap = new Map();
 let userLocationMarker = null;
 let stopsLayerNotInteractive, stopsLayerInteractive, routesLayer, stopsHeadingLayer;

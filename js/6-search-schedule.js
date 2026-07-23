@@ -110,6 +110,33 @@ function populateScheduleRoutes(routesArray, lineID) {
   updateArrivalsUIState();
 }
 
+// the train/suburban stops dataset stores names transliterated to latin
+// (eg "Aerodromio") rather than greek, so a greek query has to be
+// converted to match it instead of the other way around like the bus
+// stops - toGreeklish alone still misses a lot though, since this
+// datasets own transliteration convention disagrees with it on a couple
+// of very common letters (eta as "i" not "h", chi as "ch" not "x"), so
+// this tries that alternate spelling too. a handful of major hubs are
+// translated outright rather than transliterated at all (eg "Airport"),
+// which no transliteration scheme can bridge, so those get a small
+// explicit alias instead
+const trainStopNameAliases = {
+  'αεροδρόμιο': 'airport',
+  'αθήνα': 'athens',
+  'πειραιάς': 'piraeus',
+};
+function toGreeklishAltSpelling(text) {
+  return text.toLowerCase().split('').map((char) => {
+    if (char === 'η' || char === 'ή') return 'i';
+    if (char === 'χ') return 'ch';
+    return greeklishMap[char] || char;
+  }).join('');
+}
+function trainStopSearchVariants(query) {
+  const lower = query.toLowerCase();
+  return [lower, toGreeklish(lower), toGreeklishAltSpelling(lower), trainStopNameAliases[lower]].filter(Boolean);
+}
+
 // search logic
 function handleSearch() {
   const query = searchInput.value.toLowerCase();
@@ -133,14 +160,57 @@ function handleSearch() {
     });
     renderSearchResults(results, "lines");
   } else {
-    let results = mergedStopsGeoJSON.features.filter((feature) => feature.properties.stop_descr.toLowerCase().includes(query) || toGreeklish(feature.properties.stop_descr).toLowerCase().includes(query));
-    if (results.length === 0) {
-      results = mergedStopsGeoJSON.features.filter((feature) => {
+    let busResults = mergedStopsGeoJSON.features.filter((feature) => feature.properties.stop_descr.toLowerCase().includes(query) || toGreeklish(feature.properties.stop_descr).toLowerCase().includes(query));
+    let busMatchedViaStreetOnly = false;
+    if (busResults.length === 0) {
+      busResults = mergedStopsGeoJSON.features.filter((feature) => {
         const street = stopStreetmap.get(feature.properties.StopCode) || "";
         return (street.toLowerCase().includes(query) || toGreeklish(street).toLowerCase().includes(query));
       });
+      busMatchedViaStreetOnly = true;
     }
-    renderSearchResults(results, "stops");
+    const trainResults = suburbanStopsGeoJSON.features.filter((feature) => {
+      const nameGreek = (feature.properties.nameGreek || '').toLowerCase();
+      if (nameGreek && nameGreek.includes(query)) return true;
+      const name = (feature.properties.name || '').toLowerCase();
+      return trainStopSearchVariants(query).some((variant) => name.includes(variant));
+    });
+
+    // ranks how well each stop actually matches - exact/starts-with/contains,
+    // or weakest of all a bus stop that only matched via its street rather
+    // than its own name - computed the same way for both types so neither
+    // one gets a structural edge, with the previous bug (train matches via
+    // an alias/alt-spelling never registering as a strong match, so they
+    // always lost ties) fixed by scoring every variant that could have
+    // found the item, not just the raw query
+    const bestScore = (name, variants) => {
+      let best = null;
+      variants.forEach((variant) => {
+        if (!variant || !name) return;
+        const score = name === variant ? 0 : name.startsWith(variant) ? 1 : name.includes(variant) ? 2 : null;
+        if (score !== null && (best === null || score < best)) best = score;
+      });
+      return best;
+    };
+    const greeklishQuery = toGreeklish(query);
+    const rank = (item) => {
+      if (item.properties.groups !== undefined) {
+        const nameGreek = (item.properties.nameGreek || '').toLowerCase();
+        const name = (item.properties.name || '').toLowerCase();
+        const greekScore = nameGreek ? bestScore(nameGreek, [query]) : null;
+        const latinScore = bestScore(name, trainStopSearchVariants(query));
+        const scores = [greekScore, latinScore].filter((s) => s !== null);
+        return scores.length ? Math.min(...scores) : 3;
+      }
+      if (busMatchedViaStreetOnly) return 3;
+      const name = item.properties.stop_descr.toLowerCase();
+      const score = bestScore(name, [query, greeklishQuery]);
+      return score === null ? 3 : score;
+    };
+    const displayName = (item) => (item.properties.stop_descr || item.properties.nameGreek || item.properties.name || '').toLowerCase();
+    const combined = [...busResults, ...trainResults];
+    combined.sort((a, b) => rank(a) - rank(b) || displayName(a).localeCompare(displayName(b)));
+    renderSearchResults(combined, "stops");
   }
 }
 
@@ -184,6 +254,23 @@ function renderSearchResults(results, type) {
           e.stopPropagation();
           clearAndHideSearch();
           showSchedulePanel(item);
+        };
+      } else if (item.properties.groups !== undefined) {
+        // train / suburban rail stop - same pie-chart dot as its own map
+        // marker (one sector per line group) and line pills instead of a
+        // street, since this dataset doesnt have street data
+        const groups = item.properties.groups || [];
+        const iconHtml = createSuburbanIcon(groups).replace('<svg ', '<svg class="search-result-icon" ');
+        const pillsHtml = groups
+          .map((g) => `<span class="suburban-line-pill" style="background:${suburbanGroupColors.get(g) || '#64748b'}">${g}</span>`)
+          .join('');
+        row.innerHTML = `${iconHtml}<div class="search-result-name">${item.properties.name}</div><div class="search-result-lines">${pillsHtml}</div>`;
+        row.onclick = () => {
+          const coords = item.geometry.coordinates;
+          const latlng = L.latLng(coords[1], coords[0]);
+          map.flyTo(latlng, 16, { duration: 0.75 });
+          showSuburbanInfo(item.properties);
+          clearAndHideSearch();
         };
       } else {
         const stopCode = item.properties.StopCode;
@@ -229,7 +316,7 @@ function clearAndHideSearch() {
 // listeners
 searchInput.addEventListener("input", handleSearch);
 searchToggle.addEventListener("change", (e) => {
-  searchInput.placeholder = e.target.value === "lines" ? "Search for a bus line..." : "Search for a bus stop...";
+  searchInput.placeholder = e.target.value === "lines" ? "Search for a bus line..." : "Search for a bus or train/suburban stop...";
   clearAndHideSearch();
 });
 function onSearchFocus() {
