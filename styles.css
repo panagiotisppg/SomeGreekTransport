@@ -436,7 +436,8 @@ input[type="text"] {
 #metro-station-panel,
 #suburban-station-panel,
 #tram-station-panel,
-#live-train-panel {
+#live-train-panel,
+#train-timetable-panel {
     background: var(--surface);
     backdrop-filter: var(--blur);
     -webkit-backdrop-filter: var(--blur);
@@ -1797,6 +1798,318 @@ input[type="text"] {
     padding: 0;
 }
 
+/* ─── whole-day train timetable board ─────────────────────────────────────── */
+/* a full sheet instead of a narrow side panel - a days worth of trains across
+   every corridor needs real room, and the primary audience is mobile so it
+   behaves like a sheet at every width instead of only below the 768px break */
+#train-timetable-panel {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: calc(var(--app-vh, 100vh) * 0.92);
+    max-height: calc(var(--app-vh, 100vh) * 0.92);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    z-index: 1020;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transform: translateY(100%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+#train-timetable-panel.visible {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+@media (min-width: 769px) {
+    #train-timetable-panel {
+        left: 50%;
+        right: auto;
+        width: 100%;
+        max-width: 900px;
+        transform: translate(-50%, 100%);
+    }
+    #train-timetable-panel.visible { transform: translate(-50%, 0); }
+}
+
+#train-timetable-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 16px 16px 10px;
+    flex-shrink: 0;
+}
+
+#train-timetable-title-wrap { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+
+#train-timetable-title { font-size: 17px; font-weight: 800; color: var(--text-1); margin: 0; }
+
+#train-timetable-date { font-size: 12px; font-weight: 600; color: var(--text-3); }
+
+#train-timetable-close {
+    font-size: 22px;
+    color: var(--text-3);
+    cursor: pointer;
+    transition: color 0.2s;
+    padding: 2px 4px;
+    flex-shrink: 0;
+}
+
+#train-timetable-close:hover { color: var(--text-1); }
+
+#train-timetable-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 16px 10px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--sep);
+}
+
+#train-timetable-search {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-family: var(--font);
+    color: var(--text-1);
+    background: var(--surface-row);
+    border: 1px solid var(--sep);
+    border-radius: var(--r-md);
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+#train-timetable-search:focus { border-color: var(--accent); }
+
+#train-timetable-chips {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+}
+
+#train-timetable-chips::-webkit-scrollbar { display: none; }
+
+.timetable-chip {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: var(--r-full);
+    border: 1px solid var(--sep);
+    background: var(--surface-row);
+    color: var(--text-2);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.timetable-chip.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+#train-timetable-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 10px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.timetable-row { cursor: pointer; }
+
+.timetable-row-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.timetable-row-time {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-1);
+    min-width: 42px;
+    flex-shrink: 0;
+}
+
+.timetable-row-main { flex: 1; min-width: 0; }
+
+.timetable-corridor-pill {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: var(--r-sm);
+    color: #fff;
+    text-shadow: -0.75px -0.75px 0 #000, 0.75px -0.75px 0 #000, -0.75px 0.75px 0 #000, 0.75px 0.75px 0 #000;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.timetable-row.next-departure { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+
+/* the live dot + locate button pairing reuses .train-live-dot and
+   .train-locate-btn as-is (defined above for the suburban station panel)
+   so a "this trains live" indicator looks identical everywhere - this
+   wrapper just gives the pair their own small gap within the row */
+.timetable-row-live {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* crossed-out scheduled departure with the real delay-adjusted time right
+   below it - reuses .train-time-scheduled/.train-time-actual as-is (same
+   strikethrough/bold treatment as the departure/arrival legs elsewhere)
+   just stacked instead of inline */
+.timetable-row-times {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+    flex-shrink: 0;
+}
+
+.timetable-row-times .train-time-scheduled,
+.timetable-row-times .train-time-actual {
+    font-size: 11px;
+}
+
+/* trip progress for a currently running train - one dot per station from
+   the schedules own routeStations, filled up to the telemetrys real
+   progress fraction, with a caption naming the part being done (or,
+   while stopped, the real nearest station) */
+.timetable-trip-progress { margin-top: 10px; }
+
+.timetable-trip-caption {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-3);
+    margin-bottom: 5px;
+}
+
+.timetable-trip-dots {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 8px;
+}
+
+.timetable-trip-dots::before {
+    content: "";
+    position: absolute;
+    left: 3px;
+    right: 3px;
+    top: 50%;
+    height: 3px;
+    border-radius: var(--r-full);
+    background: var(--surface-hi);
+    transform: translateY(-50%);
+}
+
+.timetable-trip-fill {
+    position: absolute;
+    left: 3px;
+    top: 50%;
+    height: 3px;
+    border-radius: var(--r-full);
+    background: var(--success-2);
+    transform: translateY(-50%);
+    transition: width 0.6s ease;
+}
+
+/* same moving-between-two-stops chase as the live sheets own compact
+   progress line (.train-progress-track) - reuses that exact keyframe */
+.timetable-trip-chase {
+    position: absolute;
+    top: 50%;
+    height: 3px;
+    transform: translateY(-50%);
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.timetable-trip-chase::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -40%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, var(--success-2), transparent);
+    animation: train-progress-chase 1.6s linear infinite;
+    animation-delay: var(--chase-delay, 0ms);
+}
+
+.timetable-trip-dot {
+    position: relative;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--surface-hi);
+    border: 1px solid var(--sep);
+    z-index: 1;
+}
+
+.timetable-trip-dot.passed { background: var(--success-2); border-color: var(--success-2); }
+
+.timetable-trip-dot.current,
+.timetable-trip-dot.stopped {
+    background: var(--success-2);
+    border-color: var(--success-2);
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25);
+}
+
+.timetable-trip-dot.current { animation: timetable-live-pulse 1.4s ease-in-out infinite; }
+
+/* same slower calmer flash as the live sheets own .train-progress-dot.stopped -
+   the train has actually arrived here rather than still approaching */
+.timetable-trip-dot.stopped { animation: timetable-live-pulse 2.6s ease-in-out infinite; }
+
+@keyframes timetable-live-pulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25); }
+    50% { box-shadow: 0 0 0 3px rgba(34, 197, 94, 0); }
+}
+
+.timetable-row-expand-icon {
+    width: 16px;
+    height: 16px;
+    color: var(--text-3);
+    flex-shrink: 0;
+    transition: transform 0.25s ease;
+}
+
+.timetable-row.expanded .timetable-row-expand-icon { transform: rotate(180deg); }
+
+.timetable-row-expanded-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease;
+}
+
+.timetable-row.expanded .timetable-row-expanded-content {
+    max-height: 340px;
+    overflow-y: auto;
+    padding-top: 10px;
+}
+
+#train-timetable-list .info-message,
+#train-timetable-list .loader-container { margin-top: 24px; }
+
 /* ─── map control buttons ─────────────────────────────────────────────────── */
 .custom-controls-container {
     display: flex;
@@ -1812,7 +2125,8 @@ input[type="text"] {
 #clear-route-button,
 #location-button,
 #layer-control-button,
-#theme-toggle {
+#theme-toggle,
+#timetable-button {
     width: 36px;
     height: 36px;
     background-color: var(--btn-bg);
@@ -1831,7 +2145,8 @@ input[type="text"] {
 #clear-route-button:hover,
 #location-button:hover,
 #layer-control-button:hover,
-#theme-toggle:hover {
+#theme-toggle:hover,
+#timetable-button:hover {
     background-color: var(--surface-hover);
     box-shadow: var(--shadow-md);
     transform: scale(1.06);
@@ -1840,9 +2155,21 @@ input[type="text"] {
 #clear-route-button:active,
 #location-button:active,
 #layer-control-button:active,
-#theme-toggle:active {
+#theme-toggle:active,
+#timetable-button:active {
     transform: scale(0.96);
 }
+
+/* still rounded, but a wider rounded-rect rather than a circle so this
+   one - opening a full board, not a toggle - reads as a distinct, more
+   prominent action from its circular siblings */
+#timetable-button {
+    width: 44px;
+    border-radius: var(--r-sm);
+}
+
+#timetable-button svg { stroke: var(--text-2); transition: stroke 0.2s; }
+#timetable-button:hover svg { stroke: var(--accent); }
 
 #clear-route-button { display: none; }
 

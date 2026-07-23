@@ -70,6 +70,13 @@ const locationButton = document.getElementById("location-button");
 const customControlsContainer = document.querySelector(".custom-controls-container");
 const delayTooltip = document.getElementById('delay-tooltip');
 const activeTimersContainer = document.getElementById('active-timers-container');
+const timetableButton = document.getElementById('timetable-button');
+const trainTimetablePanel = document.getElementById('train-timetable-panel');
+const trainTimetableClose = document.getElementById('train-timetable-close');
+const trainTimetableDate = document.getElementById('train-timetable-date');
+const trainTimetableSearch = document.getElementById('train-timetable-search');
+const trainTimetableChips = document.getElementById('train-timetable-chips');
+const trainTimetableList = document.getElementById('train-timetable-list');
 
 if (plotNotification) {
     plotNotification.style.touchAction = "none";
@@ -117,6 +124,14 @@ let notificationTimeout = null;
 let suburbanGroupColors = new Map();
 let suburbanStopGroupsByGovId = new Map();
 let suburbanStopCoordsByGovId = new Map();
+
+let timetableCorridors = null;
+let timetableSchedules = [];
+let timetableTelemetryByScheduleId = new Map();
+let timetableEventSource = null;
+let timetableCorridorColors = new Map();
+let timetableActiveLineKey = 'all';
+let timetableHasLoadedOnce = false;
 
 const metroColors = {
   green: '#1f8136ff', red: '#b80600ff', blue: '#004c9eff'

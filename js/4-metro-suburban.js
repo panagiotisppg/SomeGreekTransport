@@ -906,8 +906,19 @@ function createLiveTrainMarker(latlng, heading, color) {
 }
 
 // last confirmed stop and the next one not the overall origin and destination
-function getTrainProgressStops(route) {
+// the timetable board's live telemetry (when its been fetched this session)
+// is a fresher real time signal than the schedules own state, which only
+// flips a stop to passed once an actual arrival time is reported - preferring
+// it here keeps the live sheet and the timetable agreeing on the same train
+// instead of each drifting to a different "current" stop
+function getTrainProgressStops(route, scheduleId) {
   if (!route || route.length === 0) return null;
+  const telemetry = scheduleId ? timetableTelemetryByScheduleId.get(scheduleId) : null;
+  if (telemetry && telemetry.nextStationId) {
+    const nextIdx = route.findIndex((stop) => stop.stationId === telemetry.nextStationId);
+    if (nextIdx > 0) return { current: route[nextIdx - 1], next: route[nextIdx] };
+    if (nextIdx === 0) return { current: route[0], next: route[0] };
+  }
   let currentIdx = -1;
   route.forEach((stop, i) => { if (stop.state === 'passed') currentIdx = i; });
   if (currentIdx === -1) currentIdx = 0;
@@ -938,7 +949,15 @@ const nearestStopRadiusMeters = 500;
 // practice even for trains with a real position and a known next station
 // so this falls back to our own stop coordinates and measures it directly
 function isTrainStoppedAtNextStation(pos) {
-  if (typeof pos.speed !== 'number' || pos.speed >= 1) return false;
+  // the timetable boards telemetry reports speed in km/h directly and, when
+  // available, is preferred over the position streams own speed field so
+  // the two features never disagree about whether a train is stopped
+  const telemetry = pos.scheduleId ? timetableTelemetryByScheduleId.get(pos.scheduleId) : null;
+  if (telemetry && typeof telemetry.speedKmh === 'number') {
+    if (telemetry.speedKmh >= 1) return false;
+  } else if (typeof pos.speed !== 'number' || pos.speed >= 1) {
+    return false;
+  }
   if (typeof pos.lat !== 'number' || typeof pos.lng !== 'number') return false;
 
   if (typeof pos.distanceToNextStation_m === 'number') {
@@ -980,7 +999,7 @@ function getStoppedNearbyStopName(pos) {
 // you are here indicator green dot for last stop pulsing dot for next stop and a chasing line between them
 // isatstop drops the two endpoint layout entirely for a single slower
 // flashing dot on the stop its actually sitting at right now
-function renderTrainProgressLine(current, next, isAtStop = false) {
+function renderTrainProgressLine(current, next, isAtStop = false, pos = null) {
   if (!next) {
     return `
       <div class="train-progress">
@@ -991,12 +1010,18 @@ function renderTrainProgressLine(current, next, isAtStop = false) {
       </div>`;
   }
   if (isAtStop) {
+    // the schedule only flips a stop to "next" based on the apis own claim,
+    // which can be wrong or stale - while actually stopped, trust the trains
+    // real gps position over that claim and name whichever real stop its
+    // physically sitting next to instead
+    const nearest = pos ? findClosestSuburbanStop(pos.lat, pos.lng) : null;
+    const stoppedName = (nearest && nearest.distance <= trainAtStopRadiusMeters) ? nearest.name : next.name;
     return `
       <div class="train-progress">
         <div class="train-progress-stop">
           <span class="train-progress-dot stopped"></span>
           <span class="train-progress-stopped-label">Currently stopped at</span>
-          <span class="train-progress-name at-stop">${abbreviateProgressStopName(next.name)}</span>
+          <span class="train-progress-name at-stop">${abbreviateProgressStopName(stoppedName)}</span>
         </div>
       </div>`;
   }
@@ -1033,8 +1058,8 @@ function renderTrainRowLiveProgress(scheduleId) {
   const pos = liveTrainPositionsByScheduleId.get(scheduleId);
   if (!pos) return '';
   const cached = suburbanScheduleCache.get(scheduleId);
-  const progress = cached ? getTrainProgressStops(cached.route) : null;
-  const progressLine = progress ? renderTrainProgressLine(progress.current, progress.next, isTrainStoppedAtNextStation(pos)) : '';
+  const progress = cached ? getTrainProgressStops(cached.route, scheduleId) : null;
+  const progressLine = progress ? renderTrainProgressLine(progress.current, progress.next, isTrainStoppedAtNextStation(pos), pos) : '';
   const speedHtml = renderTrainSpeedBadge(pos.speed);
   if (!progressLine && !speedHtml) return '';
   return `<div class="train-live-progress">${progressLine}${speedHtml}</div>`;
@@ -1133,14 +1158,14 @@ function renderLiveTrainRow(pos) {
         ${renderTrainLeg(arrivalLeg, 'τερμα', false, true, destName, avgDelay)}
       </div>`;
 
-    const progress = getTrainProgressStops(cached.route);
+    const progress = getTrainProgressStops(cached.route, scheduleId);
     const speedBadge = renderTrainSpeedBadge(pos.speed);
     const atStop = isTrainStoppedAtNextStation(pos);
     // the row itself now says currently stopped at directly so the caption
     // above it would just repeat that only the moving state still needs one
     const progressCaption = atStop ? '' : '<div class="train-progress-caption">Currently doing the part:</div>';
     progressSection = progress
-      ? `${progressCaption}<div class="train-progress-row">${renderTrainProgressLine(progress.current, progress.next, atStop)}${speedBadge}</div>`
+      ? `${progressCaption}<div class="train-progress-row">${renderTrainProgressLine(progress.current, progress.next, atStop, pos)}${speedBadge}</div>`
       : '';
   } else if (scheduleId) {
     progressSection = '<div class="train-route-diagram-loading">Loading route…</div>';

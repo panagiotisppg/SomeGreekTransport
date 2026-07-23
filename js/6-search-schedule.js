@@ -250,7 +250,7 @@ scheduleClose.addEventListener("click", () => {
 function updateButtonPosition() {
   setTimeout(() => {
     if (window.innerWidth > 768) {
-      customControlsContainer.style.top = "60px"; 
+      customControlsContainer.style.top = "12px";
       if (schedulePanel.classList.contains('visible')) {
         customControlsContainer.style.left = '370px';
       } else {
@@ -263,7 +263,7 @@ function updateButtonPosition() {
       const newTop = resultsRect.bottom + 10;
       customControlsContainer.style.top = `${newTop}px`;
     } else {
-      customControlsContainer.style.top = "60px";
+      customControlsContainer.style.top = "12px";
     }
   }, 50);
 }
