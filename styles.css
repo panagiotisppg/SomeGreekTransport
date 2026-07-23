@@ -2174,16 +2174,8 @@ input[type="text"] {
     transform: scale(0.96);
 }
 
-/* still rounded, but a wider rounded-rect rather than a circle so this
-   one - opening a full board, not a toggle - reads as a distinct, more
-   prominent action from its circular siblings */
-#timetable-button {
-    width: 44px;
-    border-radius: var(--r-sm);
-}
-
-#timetable-button svg { stroke: var(--text-2); transition: stroke 0.2s; }
-#timetable-button:hover svg { stroke: var(--accent); }
+#timetable-button svg { stroke: var(--accent); transition: stroke 0.2s; }
+#timetable-button:hover svg { stroke: var(--accent-2); }
 
 #clear-route-button { display: none; }
 

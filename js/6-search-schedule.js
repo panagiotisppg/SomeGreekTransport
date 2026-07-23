@@ -350,7 +350,11 @@ function updateButtonPosition() {
       const newTop = resultsRect.bottom + 10;
       customControlsContainer.style.top = `${newTop}px`;
     } else {
-      customControlsContainer.style.top = "12px";
+      // on mobile the search bar spans nearly the full width, so aligning
+      // the button stack with it like on desktop would overlap it -
+      // sitting below it instead keeps them both left-aligned and clear
+      const searchRect = searchContainer.getBoundingClientRect();
+      customControlsContainer.style.top = `${searchRect.bottom + 10}px`;
     }
   }, 50);
 }
