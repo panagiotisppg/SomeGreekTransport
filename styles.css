@@ -3073,6 +3073,16 @@ html.theme-transition *::after {
            edge and whatever is scrolled to the end of it clear of that
            instead of the last stop ending up hidden behind those buttons */
         padding-bottom: env(safe-area-inset-bottom, 16px);
+        /* translateY(100%) alone isnt a reliable enough guarantee here -
+           mobile safaris address bar collapsing/expanding on scroll
+           shifts the visual viewport out from under a "fixed" sheet
+           positioned with bottom:0, so a supposedly closed (or even
+           never opened) sheet can end up peeking back into view.
+           visibility is layout independent so it stays hidden no matter
+           what the transform math does - delayed on close so the slide
+           down animation still gets to play out first */
+        visibility: hidden;
+        transition: transform 0.38s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.38s ease, visibility 0s linear 0.38s;
     }
 
     #schedule-panel.visible,
@@ -3082,6 +3092,8 @@ html.theme-transition *::after {
     #tram-station-panel.visible,
     #live-train-panel.visible {
         transform: translateY(0);
+        visibility: visible;
+        transition: transform 0.38s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.38s ease, visibility 0s linear 0s;
     }
 
     #schedule-panel   { max-height: 45svh; }

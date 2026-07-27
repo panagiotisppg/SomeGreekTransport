@@ -321,6 +321,7 @@ searchToggle.addEventListener("change", (e) => {
 });
 function onSearchFocus() {
   manageOpenPanels('search');
+  closeAllInfoPanels();
   if (searchInput.value.length > 0) {
     handleSearch();
   } else {

@@ -9,6 +9,17 @@ function hideLoader() {
   setTimeout(() => loadingOverlay.classList.add("hidden"), 500);
   setTimeout(() => {
     if (loadingOverlay) loadingOverlay.style.display = "none";
+    // the map got its initial view the instant js/3-map-engine.js parsed,
+    // which can be before the real mobile viewport height had settled -
+    // the loading overlay has kept the map untouched this whole time, so
+    // its safe here to resync leaflets cached container size and reapply
+    // the real starting view, clearing out any drift a stale size baked
+    // into that first setview (this is what made the map sometimes start
+    // off center, and every flyto after it land off too)
+    if (map) {
+      map.invalidateSize();
+      map.setView([37.9838, 23.7275], 12);
+    }
   }, 1200);
 }
 
@@ -58,6 +69,22 @@ function clearDemotedPanels() {
   metroStationPanel.classList.remove('panel-demoted');
   schedulePanel.classList.remove('panel-demoted');
   if (typeof closeLiveTrainSheet === 'function') closeLiveTrainSheet();
+}
+
+// on mobile a closed station/schedule sheet only ever slides itself off
+// screen via transform (its own close button never clears its content or
+// touches manageOpenPanels, which doesnt know about these sheets at all)
+// so opening something that should own the whole screen - search, the
+// timetable board - explicitly re-closes every one of them instead of
+// trusting that they already are, which is what let an already "closed"
+// sheet still show through underneath
+function closeAllInfoPanels() {
+  stopTimer();
+  stopSuburbanTimer();
+  [stopInfoPanel, metroStationPanel, suburbanStationPanel, tramStationPanel, schedulePanel].forEach((panel) => {
+    if (panel) panel.classList.remove('visible');
+  });
+  clearDemotedPanels();
 }
 
 // notifications and drag logic

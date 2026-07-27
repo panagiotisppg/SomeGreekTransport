@@ -21,6 +21,14 @@
           var vv = window.visualViewport;
           var h = vv ? vv.height : window.innerHeight;
           document.documentElement.style.setProperty('--app-vh', h + 'px');
+          // #maps own height only ever follows this variable through a
+          // chain of 100% heights, so if the viewport settles to its real
+          // size after leaflet already measured the container (this script
+          // runs before js/3-map-engine.js even exists yet, hence the try)
+          // every flyto/setview from then on keeps computing pixels off a
+          // stale cached size until this runs - which is exactly what made
+          // the map start off center and land wrong when tapping a stop
+          try { if (map) map.invalidateSize(); } catch (e) {}
         }
         setAppHeight();
         if (window.visualViewport) {

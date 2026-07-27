@@ -88,6 +88,7 @@ function buildTimetableLines() {
 
 async function openTrainTimetable() {
   manageOpenPanels('timetable');
+  closeAllInfoPanels();
   trainTimetablePanel.classList.add('visible');
   trainTimetableDate.textContent = new Date().toLocaleDateString('en-GB', {
     weekday: 'short', day: '2-digit', month: 'short', timeZone: 'Europe/Athens',
