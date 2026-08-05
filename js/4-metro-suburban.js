@@ -54,6 +54,31 @@ function createSuburbanIcon(groups) {
   return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.4));">${content}</svg>`;
 }
 
+// same dot treatment as createMetroIcon (same viewBox/radius/stroke/shadow,
+// sized the same way via getMetroIconSize) plus the gate letter+number
+// baked into the dot itself instead of a separate label
+function createFerryIcon(gate) {
+  const size = 24;
+  const center = size / 2;
+  const rOuter = 9;
+  const strokeWidth = 1.5;
+  const color = ferryGateColors[gate] || '#888';
+  const textColor = FERRY_DARK_TEXT_GATES.has(gate) ? '#1a1a1a' : '#fff';
+  return `<svg viewBox="0 0 ${size} ${size}" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.4));"><circle cx="${center}" cy="${center}" r="${rOuter}" fill="${color}" stroke="#fff" stroke-width="${strokeWidth}"/><text x="${center}" y="${center}" text-anchor="middle" dominant-baseline="central" font-size="7" font-weight="700" font-family="var(--font)" fill="${textColor}">${gate}</text></svg>`;
+}
+// picked by comparing each ferryGateColors fill against its yiq perceived
+// luminance (>=140 reads better with dark text than white)
+const FERRY_DARK_TEXT_GATES = new Set(['E1', 'E9']);
+
+// simple white ferry/ship silhouette (hull + cabin + bridge), used on its
+// own small blue circle badge next to the gate panel's title
+function createShipGlyph() {
+  return `<svg viewBox="0 0 24 24" width="14" height="14">
+    <path d="M12 3 L17 11 L7 11 Z" fill="white"/>
+    <path d="M0 11 L24 11 L18 22 L6 22 Z" fill="white"/>
+  </svg>`;
+}
+
 function createTramIcon(lineT) {
   const size = 18;
   const center = size / 2;
@@ -67,17 +92,19 @@ function showMetroInfo(properties) {
   clearDemotedPanels();
   stopTimer();
   stopSuburbanTimer();
+  stopFerryCountdownTicker();
   if (selectedStopMarker) {
-    map.removeLayer(selectedStopMarker);
+    selectedStopMarker.remove();
     selectedStopMarker = null;
   }
   if (selectedHeadingMarker) {
-    map.removeLayer(selectedHeadingMarker);
+    selectedHeadingMarker.remove();
     selectedHeadingMarker = null;
   }
   stopInfoPanel.classList.remove("visible");
   suburbanStationPanel.classList.remove("visible");
   tramStationPanel.classList.remove("visible");
+  ferryStationPanel.classList.remove("visible");
   schedulePanel.classList.remove("visible");
 
   const iconHtml = createMetroIcon(properties.MSYM);
@@ -646,16 +673,18 @@ async function fetchAndRenderSuburbanArrivals(properties, isInitialLoad) {
 function showSuburbanInfo(properties) {
   clearDemotedPanels();
   stopTimer();
+  stopFerryCountdownTicker();
   stopInfoPanel.classList.remove("visible");
   metroStationPanel.classList.remove("visible");
   tramStationPanel.classList.remove("visible");
+  ferryStationPanel.classList.remove("visible");
   schedulePanel.classList.remove("visible");
   if (selectedStopMarker) {
-    map.removeLayer(selectedStopMarker);
+    selectedStopMarker.remove();
     selectedStopMarker = null;
   }
   if (selectedHeadingMarker) {
-    map.removeLayer(selectedHeadingMarker);
+    selectedHeadingMarker.remove();
     selectedHeadingMarker = null;
   }
 
@@ -741,17 +770,19 @@ function showTramInfo(properties) {
   clearDemotedPanels();
   stopTimer();
   stopSuburbanTimer();
+  stopFerryCountdownTicker();
   stopInfoPanel.classList.remove("visible");
   metroStationPanel.classList.remove("visible");
   suburbanStationPanel.classList.remove("visible");
+  ferryStationPanel.classList.remove("visible");
   schedulePanel.classList.remove("visible");
   
   if (selectedStopMarker) {
-    map.removeLayer(selectedStopMarker);
+    selectedStopMarker.remove();
     selectedStopMarker = null;
   }
   if (selectedHeadingMarker) {
-    map.removeLayer(selectedHeadingMarker);
+    selectedHeadingMarker.remove();
     selectedHeadingMarker = null;
   }
 
@@ -767,6 +798,209 @@ function showTramInfo(properties) {
   tramStationLines.innerHTML = coloredLinesHtml;
   tramStationPanel.classList.add("visible");
 }
+
+// ─── ferry gates (port of piraeus / olp.gr) ────────────────────────────────
+// no public json api - scrapes olp.gr's dromologia.php tables, turning each
+// row into a {ColumnName: value} record keyed off the last header row
+const OLP_SCHEDULE_URL = 'https://www.olp.gr/dromologia.php';
+
+function parseOlpTable(tableEl) {
+  const headers = [];
+  const rows = [];
+  tableEl.querySelectorAll('tr').forEach((tr) => {
+    const cells = Array.from(tr.querySelectorAll('th,td'));
+    const values = cells.map((c) => c.textContent.trim());
+    if (!values.length) return;
+    const hasTh = tr.querySelector('th');
+    const hasTd = tr.querySelector('td');
+    if (hasTh && !hasTd) headers.push(values);
+    else rows.push(values);
+  });
+  return { headers, rows };
+}
+
+function olpRowsToRecords(headers, rows) {
+  let columnNames = null;
+  for (let i = headers.length - 1; i >= 0; i--) {
+    if (headers[i].length >= 3) { columnNames = headers[i]; break; }
+  }
+  if (!columnNames) return rows.map((raw) => ({ raw }));
+  return rows.map((row) => {
+    if (row.length !== columnNames.length) return { raw: row };
+    const record = {};
+    columnNames.forEach((name, i) => { record[name] = row[i]; });
+    return record;
+  });
+}
+
+function parseOlpResponse(htmlText) {
+  const doc = new DOMParser().parseFromString(htmlText, 'text/html');
+  const sections = {};
+  doc.querySelectorAll('div[id]').forEach((div) => {
+    const table = div.querySelector('table');
+    if (!table) return;
+    const { headers, rows } = parseOlpTable(table);
+    const entry = { headers };
+    if (div.id.startsWith('departure_') || div.id.startsWith('arrivals_')) {
+      entry.records = olpRowsToRecords(headers, rows);
+    } else {
+      entry.rows = rows;
+    }
+    sections[div.id] = entry;
+  });
+  return sections;
+}
+
+// olp mixes the greek and latin capital E ("Ε9" vs "E9") for the gate
+// column depending on which row you get, so gate matching has to normalize
+// that away rather than compare the raw text
+function normalizeGateLabel(raw) {
+  return (raw || '').replace(/Ε/g, 'E').trim().toUpperCase();
+}
+
+async function fetchOlpScheduleForGate(gate) {
+  const url = `${PROXY_URL}${encodeURIComponent(OLP_SCHEDULE_URL)}`;
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`OLP schedule fetch failed: ${response.status}`);
+  const htmlText = await response.text();
+  const sections = parseOlpResponse(htmlText);
+  const targetGate = normalizeGateLabel(gate);
+  const byGate = (section) => (sections[section]?.records || [])
+    .filter((r) => !r.raw && normalizeGateLabel(r.Gate) === targetGate);
+  return {
+    departures: byGate('departure_en'),
+    arrivals: byGate('arrivals_en'),
+  };
+}
+
+// olp's own date format is d/m/yyyy (greek convention), paired separately
+// with an h:mm time column
+function parseOlpDateTime(dateStr, timeStr) {
+  const [day, month, year] = (dateStr || '').split('/').map(Number);
+  const [hour, minute] = (timeStr || '').split(':').map(Number);
+  if (!day || !month || !year || isNaN(hour) || isNaN(minute)) return null;
+  return new Date(year, month - 1, day, hour, minute, 0);
+}
+
+// "in 2h 15m" for a future sailing, "1h 5m ago" once its passed - the
+// schedule mixes both since it always lists a full days worth of gate traffic
+function formatFerryCountdown(targetDate) {
+  if (!targetDate) return '';
+  const diffMs = targetDate.getTime() - Date.now();
+  const isPast = diffMs < 0;
+  const totalMinutes = Math.round(Math.abs(diffMs) / 60000);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  const parts = [];
+  if (h > 0) parts.push(`${h}h`);
+  if (m > 0 || h === 0) parts.push(`${m}m`);
+  return isPast ? `${parts.join(' ')} ago` : `in ${parts.join(' ')}`;
+}
+
+// olp abbreviates the Blue Star Ferries fleet as "B S <name>" in the ship
+// column ("B S DELOS", "B S NAXOS", ...) - written out in full for display
+function expandShipName(name) {
+  return (name || '').replace(/\bB\s*S\b/gi, 'BLUE STAR');
+}
+
+// "6/8/2026" -> "06/08"; the year is never useful here (schedules only ever
+// span today/tomorrow) so it's dropped to keep the row compact
+const FERRY_MONTH_ABBR = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+// "6/8/2026" + "01:40" -> "06 AUG 01:40" - the year is dropped (schedules
+// only ever span today/tomorrow so it's never useful) and the month is
+// spelled out instead of shown as a bare, easy to misread number
+function formatFerryDateTime(dateStr, timeStr) {
+  const [day, month] = (dateStr || '').split('/');
+  if (!day || !month) return timeStr || '';
+  const monthName = FERRY_MONTH_ABBR[Number(month) - 1] || month;
+  return `${day.padStart(2, '0')} ${monthName} ${timeStr || ''}`.trim();
+}
+
+function renderFerryScheduleRows(container, records, actionLabel) {
+  if (!records.length) {
+    container.innerHTML = '<div class="info-message">No sailings listed.</div>';
+    return;
+  }
+  container.innerHTML = records.map((r) => {
+    const target = parseOlpDateTime(r.Date, r.Time);
+    return `
+    <div class="ferry-schedule-row">
+      <div class="ferry-row-main">
+        <span class="ferry-row-ship">${expandShipName(r.Ship)}</span>
+        <div class="ferry-row-pills">
+          <span class="ferry-pill-datetime">${actionLabel} ${formatFerryDateTime(r.Date, r.Time)}</span>
+          <span class="ferry-pill-duration" data-target="${target ? target.getTime() : ''}">${formatFerryCountdown(target)}</span>
+        </div>
+      </div>
+    </div>
+  `;
+  }).join('');
+}
+
+// re-renders just the countdown text every second while the panel is open,
+// instead of re-fetching/re-rendering the whole list
+function tickFerryCountdowns() {
+  ferryStationPanel.querySelectorAll('.ferry-pill-duration[data-target]').forEach((el) => {
+    const target = Number(el.dataset.target);
+    if (!target) return;
+    el.textContent = formatFerryCountdown(new Date(target));
+  });
+}
+
+function stopFerryCountdownTicker() {
+  if (ferryCountdownIntervalId) {
+    clearInterval(ferryCountdownIntervalId);
+    ferryCountdownIntervalId = null;
+  }
+}
+
+async function showFerryInfo(gate) {
+  clearDemotedPanels();
+  stopTimer();
+  stopSuburbanTimer();
+  stopFerryCountdownTicker();
+  stopInfoPanel.classList.remove("visible");
+  metroStationPanel.classList.remove("visible");
+  suburbanStationPanel.classList.remove("visible");
+  tramStationPanel.classList.remove("visible");
+  schedulePanel.classList.remove("visible");
+
+  if (selectedStopMarker) {
+    selectedStopMarker.remove();
+    selectedStopMarker = null;
+  }
+  if (selectedHeadingMarker) {
+    selectedHeadingMarker.remove();
+    selectedHeadingMarker = null;
+  }
+
+  const iconHtml = createFerryIcon(gate);
+  ferryStationTitle.innerHTML = `<div class="metro-panel-icon">${iconHtml}</div><span>Gate ${gate}</span><div class="ferry-title-ship-icon">${createShipGlyph()}</div>`;
+  ferryStationPanel.classList.add("visible");
+  ferryStationUpdated.textContent = '';
+  showLoadingUI(ferryArrivalsList, "Loading arrivals...");
+  showLoadingUI(ferryDeparturesList, "Loading departures...");
+
+  try {
+    const { departures, arrivals } = await fetchOlpScheduleForGate(gate);
+    renderFerryScheduleRows(ferryArrivalsList, arrivals, 'ARRIVING AT');
+    renderFerryScheduleRows(ferryDeparturesList, departures, 'DEPARTING AT');
+    ferryStationUpdated.textContent = `Updated ${formatEtaClock(0)}`;
+    // countdown only shows hours/minutes now (no seconds), so a tick every
+    // 20s is plenty to keep it accurate without pointless re-renders
+    ferryCountdownIntervalId = setInterval(tickFerryCountdowns, 20000);
+  } catch (error) {
+    console.error(`Failed to load OLP schedule for gate ${gate}:`, error);
+    showFinalError(ferryArrivalsList, "Could not load arrivals.");
+    showFinalError(ferryDeparturesList, "Could not load departures.");
+  }
+}
+
+ferryStationClose.addEventListener('click', () => {
+  ferryStationPanel.classList.remove('visible');
+  stopFerryCountdownTicker();
+});
 
 suburbanStationClose.addEventListener('click', () => {
   suburbanStationPanel.classList.remove('visible');
@@ -793,7 +1027,7 @@ document.getElementById('suburban-station-content').addEventListener('click', as
   if (locateBtn) {
     const row = locateBtn.closest('.train-row');
     const marker = liveTrainMarkersByScheduleId.get(row.dataset.scheduleId);
-    if (marker) map.flyTo(marker.getLatLng(), 15, { duration: 1 });
+    if (marker) map.flyTo({ center: marker.getLngLat(), zoom: 15, duration: 1000 });
     return;
   }
 
@@ -859,15 +1093,14 @@ let pendingLiveTrainScheduleFetches = new Set(); // schedule ids currently being
 
 // same chevron style as createheadingicon uses for stop headings plus a dot for the trains own position
 // the selected train also gets an expanding sonar style ring in its own line color as a whos this pick
-function createLiveTrainIcon(heading, color, isSelected) {
+function createLiveTrainIconSvg(heading, color, isSelected) {
   const c = color || DEFAULT_LIVE_TRAIN_COLOR;
   const hasHeading = typeof heading === 'number' && !isNaN(heading);
   const arrow = hasHeading
     ? `<g transform="rotate(${heading} 16 16)"><path d="M16 2 L11 13 L16 10 L21 13 Z" fill="${c}" stroke="#fff" stroke-width="0.6"/></g>`
     : '';
   const sonarRing = isSelected ? `<circle class="live-train-sonar-ring" cx="16" cy="16" r="6.5" fill="none" stroke="${c}" stroke-width="2.5"/>` : '';
-  const svg = `<svg viewBox="0 0 32 32" style="overflow: visible; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));">${sonarRing}${arrow}<circle cx="16" cy="16" r="6.5" fill="${c}" stroke="#fff" stroke-width="1.5"/></svg>`;
-  return L.divIcon({ className: 'live-train-icon', html: svg, iconSize: [28, 28], iconAnchor: [14, 14] });
+  return `<svg viewBox="0 0 32 32" style="overflow: visible; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));">${sonarRing}${arrow}<circle cx="16" cy="16" r="6.5" fill="${c}" stroke="#fff" stroke-width="1.5"/></svg>`;
 }
 
 function getTrainHeading(pos) {
@@ -901,8 +1134,13 @@ function getLiveTrainColor(pos) {
   return DEFAULT_LIVE_TRAIN_COLOR;
 }
 
-function createLiveTrainMarker(latlng, heading, color) {
-  return L.marker(latlng, { icon: createLiveTrainIcon(heading, color), pane: 'trainLivePane' });
+function createLiveTrainMarker(lngLat, heading, color) {
+  const el = document.createElement('div');
+  el.className = 'live-train-icon';
+  el.style.width = '28px';
+  el.style.height = '28px';
+  el.innerHTML = createLiveTrainIconSvg(heading, color, false);
+  return new maplibregl.Marker({ element: el }).setLngLat(lngLat);
 }
 
 // last confirmed stop and the next one not the overall origin and destination
@@ -966,7 +1204,7 @@ function isTrainStoppedAtNextStation(pos) {
 
   const stop = pos.nextStationId ? suburbanStopCoordsByGovId.get(pos.nextStationId) : null;
   if (!stop) return false;
-  const distance = L.latLng(pos.lat, pos.lng).distanceTo(L.latLng(stop.lat, stop.lng));
+  const distance = distanceMeters({ lat: pos.lat, lng: pos.lng }, stop);
   return distance <= trainAtStopRadiusMeters;
 }
 
@@ -977,7 +1215,7 @@ function findClosestSuburbanStop(lat, lng) {
   let closestName = null;
   let closestDistance = Infinity;
   suburbanStopCoordsByGovId.forEach((stop) => {
-    const distance = L.latLng(lat, lng).distanceTo(L.latLng(stop.lat, stop.lng));
+    const distance = distanceMeters({ lat, lng }, stop);
     if (distance < closestDistance) {
       closestDistance = distance;
       closestName = stop.name;
@@ -1245,7 +1483,7 @@ function refreshLiveTrainMarkerIcon(id) {
   const marker = liveTrainMarkers.get(id);
   const pos = liveTrainLatestPositions.get(id);
   if (!marker || !pos) return;
-  marker.setIcon(createLiveTrainIcon(getTrainHeading(pos), getLiveTrainColor(pos), id === currentLiveTrainSheetId));
+  marker.getElement().innerHTML = createLiveTrainIconSvg(getTrainHeading(pos), getLiveTrainColor(pos), id === currentLiveTrainSheetId);
 }
 
 // opens in front of whatever panel is already open instead of replacing it
@@ -1369,22 +1607,27 @@ function updateLiveTrainPositions(positions) {
     if (!id) return;
     seenIds.add(id);
     liveTrainLatestPositions.set(id, pos);
-    const latlng = [pos.lat, pos.lng];
+    const lngLat = [pos.lng, pos.lat];
     const heading = getTrainHeading(pos);
     const color = getLiveTrainColor(pos);
     let marker;
     if (liveTrainMarkers.has(id)) {
       marker = liveTrainMarkers.get(id);
-      marker.setLatLng(latlng);
-      marker.setIcon(createLiveTrainIcon(heading, color, id === currentLiveTrainSheetId));
+      marker.setLngLat(lngLat);
+      marker.getElement().innerHTML = createLiveTrainIconSvg(heading, color, id === currentLiveTrainSheetId);
       // schedule fetch is async so the origin/destination may only become
       // known a tick or two after the marker itself was first drawn
-      marker.setTooltipContent(renderLiveTrainTooltip(pos));
+      if (marker._hoverPopup) marker._hoverPopup.setHTML(renderLiveTrainTooltip(pos));
       updateLiveTrainSheetIfOpen(id, pos);
     } else {
-      marker = createLiveTrainMarker(latlng, heading, color);
-      marker.bindTooltip(renderLiveTrainTooltip(pos), { direction: 'top', offset: [0, -6], className: 'live-train-tooltip-wrapper' });
-      marker.on('click', () => openLiveTrainSheet(id));
+      marker = createLiveTrainMarker(lngLat, heading, color);
+      const popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'live-train-tooltip-wrapper', offset: 14 });
+      popup.setHTML(renderLiveTrainTooltip(pos));
+      marker._hoverPopup = popup;
+      const el = marker.getElement();
+      el.addEventListener('mouseenter', () => { popup.setLngLat(marker.getLngLat()).addTo(map); openMapPopups.add(popup); });
+      el.addEventListener('mouseleave', () => { popup.remove(); openMapPopups.delete(popup); });
+      el.addEventListener('click', () => openLiveTrainSheet(id));
       marker.addTo(map);
       liveTrainMarkers.set(id, marker);
     }
@@ -1398,7 +1641,8 @@ function updateLiveTrainPositions(positions) {
   // stream snapshot is the full state so drop anything missing from it
   liveTrainMarkers.forEach((marker, id) => {
     if (seenIds.has(id)) return;
-    map.removeLayer(marker);
+    if (marker._hoverPopup) marker._hoverPopup.remove();
+    marker.remove();
     liveTrainMarkers.delete(id);
     liveTrainLatestPositions.delete(id);
     if (id === currentLiveTrainSheetId) closeLiveTrainSheet();

@@ -23,12 +23,12 @@
           document.documentElement.style.setProperty('--app-vh', h + 'px');
           // #maps own height only ever follows this variable through a
           // chain of 100% heights, so if the viewport settles to its real
-          // size after leaflet already measured the container (this script
+          // size after maplibre already measured the container (this script
           // runs before js/3-map-engine.js even exists yet, hence the try)
           // every flyto/setview from then on keeps computing pixels off a
           // stale cached size until this runs - which is exactly what made
           // the map start off center and land wrong when tapping a stop
-          try { if (map) map.invalidateSize(); } catch (e) {}
+          try { if (map) map.resize(); } catch (e) {}
         }
         setAppHeight();
         if (window.visualViewport) {
@@ -81,10 +81,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-    <!-- leaflet css library -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <!-- maplibre gl js library -->
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
     <!-- custom css -->
-    <link rel="stylesheet" href="styles.css?v=2" />
+    <link rel="stylesheet" href="styles.css?v=12" />
     <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 </head>
 
@@ -252,6 +252,25 @@
         </div>
     </div>
 
+    <!-- ferry gate info panel -->
+    <div id="ferry-station-panel">
+        <div id="ferry-station-header">
+            <h3 id="ferry-station-title"></h3>
+            <span id="ferry-station-updated"></span>
+            <span id="ferry-station-close">×</span>
+        </div>
+        <div id="ferry-station-content">
+            <div class="ferry-schedule-section">
+                <p>Arrivals</p>
+                <div id="ferry-arrivals-list"></div>
+            </div>
+            <div class="ferry-schedule-section">
+                <p>Departures</p>
+                <div id="ferry-departures-list"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- live train info sheet -->
     <div id="live-train-panel">
         <div id="live-train-header">
@@ -287,7 +306,7 @@
     </div>
 
     <!-- custom controls container -->
-    <div class="leaflet-top leaflet-left custom-controls-container">
+    <div class="custom-controls-container">
         <button id="timetable-button" title="Train timetable">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="5" width="18" height="16" rx="3" />
@@ -324,6 +343,15 @@
                 <line x1="21" y1="12" x2="23" y2="12"/>
                 <line x1="4.22" y1="19.78"  x2="5.64" y2="18.36"/>
                 <line x1="18.36" y1="5.64"  x2="19.78" y2="4.22"/>
+            </svg>
+        </button>
+
+        <button id="compass-button" title="Reset map orientation to north">
+            <svg id="compass-icon" width="22" height="22" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.6"/>
+                <path d="M12 3.5 L15 12 L12 12 Z" fill="#e5342a"/>
+                <path d="M12 20.5 L9 12 L12 12 Z" fill="currentColor" opacity="0.55"/>
+                <circle cx="12" cy="12" r="1.4" fill="currentColor"/>
             </svg>
         </button>
 
@@ -435,20 +463,19 @@
         </div>
     </div>
 
-    <!-- leaflet js library -->
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-polylinedecorator@1.6.0/dist/leaflet.polylineDecorator.js"></script>
+    <!-- maplibre gl js library -->
+    <script src="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.js"></script>
 
     <!-- custom javascript files split into logical modules -->
     <div id="delay-tooltip"></div>
-    <script src="js/1-globals.js?v=2"></script>
-    <script src="js/2-utils.js?v=2"></script>
-    <script src="js/3-map-engine.js?v=2"></script>
-    <script src="js/4-metro-suburban.js?v=2"></script>
-    <script src="js/5-bus-logic.js?v=2"></script>
-    <script src="js/6-search-schedule.js?v=2"></script>
-    <script src="js/7-main.js?v=2"></script>
-    <script src="js/8-train-timetable.js?v=2"></script>
+    <script src="js/1-globals.js?v=12"></script>
+    <script src="js/2-utils.js?v=12"></script>
+    <script src="js/3-map-engine.js?v=12"></script>
+    <script src="js/4-metro-suburban.js?v=12"></script>
+    <script src="js/5-bus-logic.js?v=12"></script>
+    <script src="js/6-search-schedule.js?v=12"></script>
+    <script src="js/7-main.js?v=12"></script>
+    <script src="js/8-train-timetable.js?v=12"></script>
 
     <script>
       document.getElementById('theme-toggle').addEventListener('click', function() {

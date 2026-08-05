@@ -1,31 +1,31 @@
 const createBusTextIcon = (lineID, vehNo, color) => {
   const html = `<div class="bus-icon-body" style="background-color: ${colorHex[color]}"><span class="bus-icon-lineid">${lineID}</span><span class="bus-icon-vehno">${vehNo}</span><div class="bus-icon-tire tire-left"></div><div class="bus-icon-tire tire-right"></div></div>`;
-  return L.divIcon({ className: "bus-text-icon", html: html, iconSize: [40, 36], iconAnchor: [20, 18], });
+  return elFromHTML(`<div class="bus-text-icon">${html}</div>`);
 };
 
-const createSharedStopIcon = () => {
-  const iconHtml = `<svg width="14" height="14" viewBox="0 0 14 14" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));"><path d="M7 0 A7 7 0 0 1 7 14" fill="${colorHex.cyan}" /><path d="M7 0 A7 7 0 0 0 7 14" fill="${colorHex.green}" /><circle cx="7" cy="7" r="6.5" fill="transparent" stroke="white" stroke-width="1"/></svg>`;
-  return L.divIcon({ className: "shared-stop-icon", html: iconHtml, iconSize: [14, 14], iconAnchor: [7, 7], });
-};
+// raw svg string, reused directly by the search results row (js/6-search-schedule.js)
+const createSharedStopIconSvg = () =>
+  `<svg width="14" height="14" viewBox="0 0 14 14" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));"><path d="M7 0 A7 7 0 0 1 7 14" fill="${colorHex.cyan}" /><path d="M7 0 A7 7 0 0 0 7 14" fill="${colorHex.green}" /><circle cx="7" cy="7" r="6.5" fill="transparent" stroke="white" stroke-width="1"/></svg>`;
+
+const createSharedStopIconElement = () => elFromHTML(`<div class="shared-stop-icon">${createSharedStopIconSvg()}</div>`);
 
 const getSelectedStopStyle = () => {
   const fillColor = plottedRoutes.length === 1 ? colorHex.green : colorHex.cyan;
-  return { radius: 11, fillColor: fillColor, color: "#ffffff", weight: 2, opacity: 1, fillOpacity: 1, };
+  return { radius: 11, fillColor: fillColor, weight: 2 };
 };
-
 
 const createRouteTimerUI = (routeCode, lineID, color) => {
     const wrapper = document.createElement('div');
     wrapper.className = 'active-route-timer';
     wrapper.id = `route-timer-${routeCode}`;
-    wrapper.style.cursor = 'pointer'; 
-    
+    wrapper.style.cursor = 'pointer';
+
     const strokeColor = colorHex[color] || '#333';
 
     wrapper.innerHTML = `
         <svg class="route-timer-svg" viewBox="0 0 36 36">
             <path class="route-timer-track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
-            <path class="route-timer-progress" 
+            <path class="route-timer-progress"
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                   style="stroke: ${strokeColor}; stroke-dasharray: 100 100; stroke-dashoffset: 0;">
             </path>
@@ -70,9 +70,68 @@ const createRouteTimerUI = (routeCode, lineID, color) => {
     return wrapper;
 };
 
+function clearPlottedStopMarkers() {
+  plottedStopMarkers.forEach(({ marker }) => marker.remove());
+  plottedStopMarkers = [];
+}
+
+// plotted-route stop markers need their own click handler - the bulk stops
+// layer underneath is filtered out for these exact stops (updatePlottedStopsFilter)
+// so a tap would otherwise go nowhere. route.stops uses different property
+// casing than the bulk geojson (StopDescr vs stop_descr) so this looks the
+// stop up in mergedStopsGeoJSON by StopCode first to get the canonical shape
+function openStopInfoFromPlottedMarker(stopData, lng, lat) {
+  map.flyTo({ center: [lng, lat], zoom: 17, duration: 750 });
+  if (selectedStopMarker) selectedStopMarker.remove();
+  const style = getSelectedStopStyle();
+  selectedStopMarker = new maplibregl.Marker({ element: createDotMarkerElement(style.radius * 2, style.fillColor, { strokeWidth: style.weight }) })
+    .setLngLat([lng, lat])
+    .addTo(map);
+
+  const globalFeature = mergedStopsGeoJSON.features.find(f => f.properties.StopCode == stopData.StopCode);
+  const stopProps = globalFeature
+    ? { ...globalFeature.properties }
+    : { StopCode: stopData.StopCode, stop_descr: stopData.StopDescr, heading: stopData.StopHeading };
+  if (stopStreetmap.has(stopProps.StopCode)) {
+    stopProps.stop_street = stopStreetmap.get(stopProps.StopCode);
+  }
+  currentStopProperties = stopProps;
+  showStopInfo(currentStopProperties);
+}
+
+// shared by the draw-in reveal (plotAnimatedRoute) and the reverse deletion
+// animation (animateRouteDeletion) - rebuilds the visible stop subset fresh
+// each frame, cheap since routes only ever have tens of stops
+function renderHighlightedStopsSubset(stopsSubset, color) {
+  clearPlottedStopMarkers();
+  plottedStopCodes.clear();
+  const style = highlightedStopStyles[color];
+  stopsSubset.forEach((stopData) => {
+    plottedStopCodes.add(stopData.StopCode);
+    // the currently open stop already has its own bigger selectedStopMarker
+    // on the map - still excluded from the bulk layer above (that's what
+    // plottedStopCodes.add just did) but skips getting a second, smaller
+    // dot of its own stacked underneath that one
+    if (currentStopProperties && stopData.StopCode == currentStopProperties.StopCode) return;
+    const lat = parseFloat(stopData.StopLat), lng = parseFloat(stopData.StopLng);
+    const el = createDotMarkerElement(style.radius * 2, style.fillColor, { strokeWidth: style.weight });
+    const labelEl = document.createElement('span');
+    labelEl.className = 'stop-label plotted-stop-label';
+    labelEl.textContent = stopData.StopDescr;
+    el.appendChild(labelEl);
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openStopInfoFromPlottedMarker(stopData, lng, lat);
+    });
+    const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
+    plottedStopMarkers.push({ marker, isArrow: false, labelEl });
+  });
+  updatePlottedStopsFilter();
+}
+
 function updateHighlightedStops() {
-  plottedStopsLayer.clearLayers();
-  plottedStopCodes.clear(); 
+  clearPlottedStopMarkers();
+  plottedStopCodes.clear();
   const stopColorMap = new Map();
   plottedRoutes.forEach((route) => {
     route.stops.forEach((stop) => {
@@ -84,18 +143,32 @@ function updateHighlightedStops() {
     });
   });
   stopColorMap.forEach(({ stopData, colors }) => {
-    const latlng = [parseFloat(stopData.StopLat), parseFloat(stopData.StopLng)];
-    let marker;
+    const lat = parseFloat(stopData.StopLat), lng = parseFloat(stopData.StopLng);
     const stopCode = stopData.StopCode;
-    plottedStopCodes.add(stopCode); 
+    plottedStopCodes.add(stopCode);
+    // the currently open stop already has its own bigger selectedStopMarker
+    // (+ selectedHeadingMarker) on the map - still excluded from the bulk
+    // layer above but skips a second, smaller dot/arrow of its own stacked
+    // right underneath
+    if (currentStopProperties && stopCode == currentStopProperties.StopCode) return;
+    let el;
     if (colors.size > 1) {
-      marker = L.marker(latlng, { icon: createSharedStopIcon(), pane: "highlightedStopsPane", interactive: false, });
+      el = createSharedStopIconElement();
     } else {
       const color = colors.values().next().value;
-      marker = L.circleMarker(latlng, highlightedStopStyles[color]);
+      const style = highlightedStopStyles[color];
+      el = createDotMarkerElement(style.radius * 2, style.fillColor, { strokeWidth: style.weight });
     }
-    marker.bindTooltip(stopData.StopDescr, { permanent: false, direction: 'bottom', offset: [0, 8], className: 'stop-label' });
-    plottedStopsLayer.addLayer(marker);
+    const labelEl = document.createElement('span');
+    labelEl.className = 'stop-label plotted-stop-label';
+    labelEl.textContent = stopData.StopDescr;
+    el.appendChild(labelEl);
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openStopInfoFromPlottedMarker(stopData, lng, lat);
+    });
+    const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
+    plottedStopMarkers.push({ marker, isArrow: false, labelEl });
 
     let heading = stopData.StopHeading;
     if (heading === undefined || heading === null || heading === "") {
@@ -110,15 +183,16 @@ function updateHighlightedStops() {
         let h = parseInt(heading, 10);
         if (!isNaN(h)) {
              if (h === -1) h = 0;
-             const arrowIcon = createHeadingIcon(h);
-             if (arrowIcon) {
-                 const arrowMarker = L.marker(latlng, { icon: arrowIcon, pane: 'plottedArrowPane', interactive: false });
-                 arrowMarker.isPlottedArrow = true;
-                 plottedStopsLayer.addLayer(arrowMarker);
+             const arrowEl = createHeadingIcon(h);
+             if (arrowEl) {
+                 const arrowMarker = new maplibregl.Marker({ element: arrowEl }).setLngLat([lng, lat]).addTo(map);
+                 plottedStopMarkers.push({ marker: arrowMarker, isArrow: true });
              }
         }
     }
   });
+  updatePlottedStopsFilter();
+  updatePlottedStopLabels();
 }
 
 function updateArrivalsUIState() {
@@ -148,7 +222,7 @@ function updateArrivalsUIState() {
   document.querySelectorAll('.schedule-plot-btn').forEach(btn => {
       const routeCode = btn.dataset.routeCode;
       const isPlotted = plottedRoutes.some(r => r.routeCode === routeCode);
-      
+
       if (isPlotted || limitReached) {
           btn.classList.add('disabled');
           btn.disabled = true;
@@ -156,6 +230,38 @@ function updateArrivalsUIState() {
           btn.classList.remove('disabled');
           btn.disabled = false;
       }
+  });
+}
+
+// called from onThemeChange once a style swap finishes - setStyle() wipes
+// any plotted route's source/layers, so this rebuilds them from route.points
+// (a route mid-draw-animation during the toggle just snaps to fully drawn)
+function rebuildPlottedRouteLayers() {
+  plottedRoutes.forEach((route) => {
+    const lineStyle = routeStyles[route.color];
+    map.addSource(route.sourceId, { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: route.points } } });
+    map.addLayer({
+      id: route.lineLayerId,
+      type: 'line',
+      source: route.sourceId,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': lineStyle.color, 'line-width': lineStyle.weight, 'line-opacity': lineStyle.opacity },
+    });
+    const arrowColor = route.color === 'cyan' ? colorHex.darkCyan : colorHex.darkGreen;
+    map.addLayer({
+      id: route.arrowLayerId,
+      type: 'symbol',
+      source: route.sourceId,
+      layout: {
+        'symbol-placement': 'line',
+        'symbol-spacing': 65,
+        'icon-image': ensureRouteArrowImage(route.color, arrowColor),
+        'icon-size': 0.55,
+        'icon-rotation-alignment': 'map',
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+      },
+    });
   });
 }
 
@@ -171,21 +277,10 @@ async function plotAnimatedRoute(routeCode, lineID, routeDescr) {
     color = (existingColor === 'cyan') ? 'green' : 'cyan';
   }
   if (plottedRoutes.length === 0) {
-    const routesPane = map.hasLayer(routesLayer) ? routesLayer.getPane() : null;
-    if (routesPane) { routesPane.style.transition = "opacity 1s linear"; routesPane.style.opacity = 0; }
-    const stopsPane = (map.hasLayer(stopsLayerInteractive) ? stopsLayerInteractive.getPane() : null) || (map.hasLayer(stopsLayerNotInteractive) ? stopsLayerNotInteractive.getPane() : null);
-    if (stopsPane) { stopsPane.style.transition = "opacity 1s linear"; stopsPane.style.opacity = 0.3; }
-    ['metroPane', 'suburbanPane', 'tramPane', 'metroStationPane', 'suburbanStationPane', 'tramStationPane', 'headingPane'].forEach(paneName => {
-      const pane = map.getPane(paneName);
-      if (pane) {
-        pane.style.transition = 'opacity 1s linear';
-        pane.style.opacity = 0.3; 
-        if (paneName.includes('Station')) { pane.style.pointerEvents = 'none'; }
-      }
-    });
+    setDimState(true);
   }
   const lineStyle = routeStyles[color];
-  
+
   // start the timer immediately so logic works
   // the visual element gets added in the rendering phase below
   startBusLocationTimer(routeCode, color);
@@ -195,21 +290,44 @@ async function plotAnimatedRoute(routeCode, lineID, routeDescr) {
     const response = await fetch(detailsUrl);
     const data = await response.json();
     if (!data.details || !data.stops || data.details.length === 0) throw new Error("Invalid route data");
-    const routePoints = data.details.map((p) => L.latLng(p.routed_y, p.routed_x));
+    const routePoints = data.details.map((p) => [parseFloat(p.routed_x), parseFloat(p.routed_y)]);
     const routeStopsGeoJSON = { type: "FeatureCollection", features: data.stops.map((s) => ({ type: "Feature", properties: s, geometry: { type: "Point", coordinates: [parseFloat(s.StopLng), parseFloat(s.StopLat)] }, })), };
-    
-    const layerGroup = new L.FeatureGroup(); 
-    
-    const polyline = L.polyline([], { ...lineStyle, pane: "animatedRoutePane" }).addTo(layerGroup);
+
+    const sourceId = `route-line-${routeCode}`;
+    const lineLayerId = `route-line-layer-${routeCode}`;
+    const arrowLayerId = `route-arrow-layer-${routeCode}`;
     const arrowColor = color === "cyan" ? colorHex.darkCyan : colorHex.darkGreen;
-    const decorator = L.polylineDecorator(polyline, { patterns: [{ offset: 25, repeat: 200, symbol: L.Symbol.arrowHead({ pixelSize: 12, pathOptions: { fillOpacity: 0.9, color: arrowColor, weight: 1, pane: "arrowPane" } }), }], }).addTo(layerGroup);
-    const routeData = { routeCode, color, layerGroup, animationId: null, stops: data.stops, busMarkers: new Map(), points: routePoints, polyline: polyline, decorator: decorator, lineID: lineID, routeDescr: routeDescr || '', routeStopsGeoJSON: routeStopsGeoJSON };
+    const arrowImageId = ensureRouteArrowImage(color, arrowColor);
+
+    map.addSource(sourceId, { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } } });
+    map.addLayer({
+      id: lineLayerId,
+      type: 'line',
+      source: sourceId,
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': lineStyle.color, 'line-width': lineStyle.weight, 'line-opacity': lineStyle.opacity },
+    });
+    map.addLayer({
+      id: arrowLayerId,
+      type: 'symbol',
+      source: sourceId,
+      layout: {
+        'symbol-placement': 'line',
+        'symbol-spacing': 65,
+        'icon-image': arrowImageId,
+        'icon-size': 0.55,
+        'icon-rotation-alignment': 'map',
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+      },
+    });
+
+    const routeData = { routeCode, color, sourceId, lineLayerId, arrowLayerId, animationId: null, stops: data.stops, busMarkers: new Map(), points: routePoints, lineID: lineID, routeDescr: routeDescr || '', routeStopsGeoJSON: routeStopsGeoJSON };
     plottedRoutes.push(routeData);
-    
+
     const startRouteVisuals = async () => {
-        layerGroup.addTo(map);
         clearRouteButton.style.display = "flex";
-        
+
         // add the floating timer to the ui
         const timerUI = createRouteTimerUI(routeCode, lineID, color);
         if (activeTimersContainer) {
@@ -223,24 +341,16 @@ async function plotAnimatedRoute(routeCode, lineID, routeDescr) {
         showPlotNotification(`${lineID}: ${routeDescr} Plotted!`, notifClass);
         let startTime = null;
         const animationDuration = 1500;
+        const lineSource = map.getSource(sourceId);
         function animateStep(timestamp) {
           if (!startTime) startTime = timestamp;
           const elapsed = timestamp - startTime;
           const progress = Math.min(elapsed / animationDuration, 1);
           const currentPoints = routePoints.slice(0, Math.floor(routePoints.length * progress));
-          polyline.setLatLngs(currentPoints);
-          decorator.setPaths(currentPoints);
+          lineSource.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: currentPoints } });
           if (plottedRoutes.length === 1) {
             const targetStopIndex = Math.floor(data.stops.length * progress);
-            const stopsToShow = data.stops.slice(0, targetStopIndex);
-            plottedStopsLayer.clearLayers();
-            stopsToShow.forEach(stopData => {
-              const latlng = [parseFloat(stopData.StopLat), parseFloat(stopData.StopLng)];
-              const marker = L.circleMarker(latlng, highlightedStopStyles[color]);
-              marker.bindTooltip(stopData.StopDescr, { permanent: false, direction: 'bottom', offset: [0, 8], className: 'stop-label' });
-              plottedStopsLayer.addLayer(marker);
-              plottedStopCodes.add(stopData.StopCode);
-            });
+            renderHighlightedStopsSubset(data.stops.slice(0, targetStopIndex), color);
           }
           if (progress < 1) {
             routeData.animationId = requestAnimationFrame(animateStep);
@@ -252,22 +362,18 @@ async function plotAnimatedRoute(routeCode, lineID, routeDescr) {
         routeData.animationId = requestAnimationFrame(animateStep);
     };
 
-    const bounds = L.latLngBounds();
+    const bounds = new maplibregl.LngLatBounds();
     plottedRoutes.forEach(r => {
-        if(r.points) bounds.extend(r.points);
+        if (r.points) r.points.forEach(p => bounds.extend(p));
     });
 
-    if(toggleZoomOnRoute && toggleZoomOnRoute.checked && bounds.isValid()) {
-        let paddingOptions = { padding: [50, 50], duration: 1.5 };
+    if (toggleZoomOnRoute && toggleZoomOnRoute.checked && !bounds.isEmpty()) {
+        let fitOptions = { padding: 50, duration: 1500 };
         if (window.innerWidth <= 768) {
             const bottomPadding = window.innerHeight * 0.45;
-            paddingOptions = { 
-                paddingTopLeft: [50, 50], 
-                paddingBottomRight: [50, bottomPadding], 
-                duration: 1.5 
-            };
+            fitOptions = { padding: { top: 50, left: 50, right: 50, bottom: bottomPadding }, duration: 1500 };
         }
-        map.flyToBounds(bounds, paddingOptions);
+        map.fitBounds(bounds, fitOptions);
         map.once('moveend', startRouteVisuals);
     } else {
         startRouteVisuals();
@@ -283,24 +389,15 @@ function animateRouteDeletion(route) {
   const duration = 1000;
   const totalPoints = route.points.length;
   const totalStops = route.stops.length;
+  const lineSource = map.getSource(route.sourceId);
   function step(timestamp) {
     if (!startTime) startTime = timestamp;
     const progress = Math.min((timestamp - startTime) / duration, 1);
     const keptPoints = Math.floor(totalPoints * (1 - progress));
-    route.polyline.setLatLngs(route.points.slice(0, keptPoints));
+    if (lineSource) lineSource.setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: route.points.slice(0, keptPoints) } });
     if (plottedRoutes.length === 0) {
       const keptStops = Math.floor(totalStops * (1 - progress));
-      const stopsToKeep = route.routeStopsGeoJSON.features.slice(0, keptStops);
-      plottedStopsLayer.clearLayers();
-      plottedStopCodes.clear();
-      stopsToKeep.forEach(feature => {
-        const stopData = feature.properties;
-        const latlng = [parseFloat(stopData.StopLat), parseFloat(stopData.StopLng)];
-        const marker = L.circleMarker(latlng, highlightedStopStyles[route.color]);
-        marker.bindTooltip(stopData.StopDescr, { permanent: false, direction: 'bottom', offset: [0, 8], className: 'stop-label' });
-        plottedStopsLayer.addLayer(marker);
-        plottedStopCodes.add(stopData.StopCode);
-      });
+      renderHighlightedStopsSubset(route.stops.slice(0, keptStops), route.color);
     }
     if (progress < 1) {
       requestAnimationFrame(step);
@@ -318,7 +415,7 @@ function clearRoutes(routesToDelete) {
   if (timerOptionsPopup && timerOptionsPopup.classList.contains('visible')) {
       timerOptionsPopup.classList.remove('visible');
   }
-  
+
   routesToDelete.forEach((route) => {
     // stop the data logic
     stopBusLocationTimer(route.routeCode);
@@ -338,33 +435,19 @@ function clearRoutes(routesToDelete) {
   updateArrivalsUIState();
   routesToDelete.forEach((route) => {
     animateRouteDeletion(route);
-    route.busMarkers.forEach((bus) =>
-      L.DomUtil.addClass(bus.marker._icon, "layer-fade-out")
-    );
+    route.busMarkers.forEach((busInfo) => busInfo.marker.getElement().classList.add("layer-fade-out"));
   });
   if (remainingRoutes.length === 0) {
-    const panesToRestore = [
-      map.getPane('metroPane'), map.getPane('suburbanPane'), map.getPane('tramPane'),
-      map.getPane('metroStationPane'), map.getPane('suburbanStationPane'), map.getPane('tramStationPane'),
-      map.getPane('headingPane')
-    ].filter(p => p);
-    if (routesLayer && map.hasLayer(routesLayer)) panesToRestore.push(routesLayer.getPane());
-    if (stopsLayerInteractive && map.hasLayer(stopsLayerInteractive)) panesToRestore.push(stopsLayerInteractive.getPane());
-    if (stopsLayerNotInteractive && map.hasLayer(stopsLayerNotInteractive)) panesToRestore.push(stopsLayerNotInteractive.getPane());
-    panesToRestore.forEach(pane => {
-      if (pane && pane.style) {
-        pane.style.transition = 'opacity 1s linear';
-        pane.style.opacity = 1;
-      }
-    });
+    setDimState(false);
     clearRouteButton.style.display = "none";
   }
   setTimeout(() => {
     routesToDelete.forEach((route) => {
       if (route.animationId) cancelAnimationFrame(route.animationId);
-      if (route.decorator) route.decorator.remove();
-      route.busMarkers.forEach((busInfo) => busInfo.marker.remove());
-      if (route.layerGroup) route.layerGroup.remove();
+      route.busMarkers.forEach((busInfo) => { if (busInfo.popup) busInfo.popup.remove(); busInfo.marker.remove(); });
+      if (map.getLayer(route.arrowLayerId)) map.removeLayer(route.arrowLayerId);
+      if (map.getLayer(route.lineLayerId)) map.removeLayer(route.lineLayerId);
+      if (map.getSource(route.sourceId)) map.removeSource(route.sourceId);
     });
     updateHighlightedStops();
     updatePlottedStopLabels();
@@ -395,7 +478,7 @@ function startBusLocationTimer(routeCode, color) {
         isRefreshing = false;
       }
     }
-    
+
     const displayTime = Math.max(0, timeLeft);
     const progress = displayTime / busRefreshDuration;
     const offset = circumference * (1 - progress);
@@ -407,7 +490,7 @@ function startBusLocationTimer(routeCode, color) {
         if (textElement) textElement.textContent = Math.round(displayTime);
         const progressCircle = wrapper.querySelector(".btime-timer-progress");
         if (progressCircle) {
-          const strokeColor = colorHex[color] || '#333'; 
+          const strokeColor = colorHex[color] || '#333';
           if (!progressCircle.style.stroke) {
               progressCircle.style.stroke = strokeColor;
               progressCircle.style.strokeDasharray = `${circumference} ${circumference}`;
@@ -443,13 +526,13 @@ function animateBusMarker(marker, from, to, busInfo) {
     if (!startTime) startTime = timestamp;
     const progress = (timestamp - startTime) / duration;
     if (progress > 1) {
-      marker.setLatLng(to);
+      marker.setLngLat([to.lng, to.lat]);
       busInfo.animationId = null;
       return;
     }
     const lat = from.lat + (to.lat - from.lat) * progress;
     const lng = from.lng + (to.lng - from.lng) * progress;
-    marker.setLatLng([lat, lng]);
+    marker.setLngLat([lng, lat]);
     busInfo.animationId = requestAnimationFrame(step);
   }
   busInfo.animationId = requestAnimationFrame(step);
@@ -469,7 +552,7 @@ async function refreshBusLocations(routeCode) {
             busData.forEach((bus) => {
                 const vehNo = bus.VEH_NO;
                 receivedBusNumbers.add(vehNo);
-                const newLatLng = L.latLng(bus.CS_LAT, bus.CS_LNG);
+                const newLatLng = { lat: parseFloat(bus.CS_LAT), lng: parseFloat(bus.CS_LNG) };
                 let timeText = "N/A";
                 if (bus.CS_DATE) {
                     const match = bus.CS_DATE.match(/(\d{1,2}):(\d{2}):(\d{2}).*?(AM|PM)/);
@@ -489,23 +572,23 @@ async function refreshBusLocations(routeCode) {
                 const popupContent = `Last updated:<br>${timeText}`;
                 if (currentBusMarkers.has(vehNo)) {
                     const busInfo = currentBusMarkers.get(vehNo);
-                    const oldLatLng = busInfo.marker.getLatLng();
-                    busInfo.marker.setPopupContent(popupContent); 
-                    if (!oldLatLng.equals(newLatLng)) {
+                    const ll = busInfo.marker.getLngLat();
+                    const oldLatLng = { lat: ll.lat, lng: ll.lng };
+                    busInfo.popup.setHTML(popupContent);
+                    if (oldLatLng.lat !== newLatLng.lat || oldLatLng.lng !== newLatLng.lng) {
                         if (busInfo.animationId) cancelAnimationFrame(busInfo.animationId);
                         animateBusMarker(busInfo.marker, oldLatLng, newLatLng, busInfo);
                     }
                 } else {
-                    const busIcon = createBusTextIcon(plottedRoute.lineID || "", vehNo, plottedRoute.color);
-                    const newMarker = L.marker(newLatLng, { icon: busIcon, pane: "busPane", });
-                    newMarker.bindPopup(popupContent, { className: 'bus-popup', offset: [0, -20], closeButton: false, autoPan: false });
-                    const busInfo = { marker: newMarker, animationId: null };
-                    newMarker.on("add", function() {
-                        this._icon.style.opacity = 0;
-                        setTimeout(() => { if (this._icon) { this._icon.style.opacity = 1; } }, 100);
-                    });
-                    plottedRoute.layerGroup.addLayer(newMarker);
-                    currentBusMarkers.set(vehNo, busInfo);
+                    const el = createBusTextIcon(plottedRoute.lineID || "", vehNo, plottedRoute.color);
+                    const popup = new maplibregl.Popup({ className: 'bus-popup', offset: 20, closeButton: false });
+                    popup.setHTML(popupContent);
+                    const newMarker = new maplibregl.Marker({ element: el }).setLngLat([newLatLng.lng, newLatLng.lat]).setPopup(popup);
+                    const busInfo = { marker: newMarker, popup, animationId: null };
+                    el.style.opacity = 0;
+                    newMarker.addTo(map);
+                    setTimeout(() => { el.style.opacity = 1; }, 100);
+                    plottedRoute.busMarkers.set(vehNo, busInfo);
                 }
             });
         }
@@ -513,7 +596,8 @@ async function refreshBusLocations(routeCode) {
             currentBusMarkers.forEach((busInfo, vehNo) => {
                 if (!receivedBusNumbers.has(vehNo)) {
                     if (busInfo.animationId) cancelAnimationFrame(busInfo.animationId);
-                    plottedRoute.layerGroup.removeLayer(busInfo.marker);
+                    if (busInfo.popup) busInfo.popup.remove();
+                    busInfo.marker.remove();
                     currentBusMarkers.delete(vehNo);
                 }
             });
@@ -525,11 +609,20 @@ async function refreshBusLocations(routeCode) {
 
 // panel logic
 async function showStopInfo(stopProperties) {
+  // callers already set currentStopProperties to this stop before calling
+  // in - refreshing now both restores whichever previously-selected stop's
+  // own highlighted dot (it's no longer the one currentStopProperties
+  // points at) and suppresses this new one's, if either is part of a
+  // plotted route (see the currentStopProperties check inside
+  // updateHighlightedStops)
+  if (plottedRoutes.length > 0) updateHighlightedStops();
   clearDemotedPanels();
   stopSuburbanTimer();
+  stopFerryCountdownTicker();
   metroStationPanel.classList.remove("visible");
   suburbanStationPanel.classList.remove("visible");
-  tramStationPanel.classList.remove("visible"); 
+  tramStationPanel.classList.remove("visible");
+  ferryStationPanel.classList.remove("visible");
   schedulePanel.classList.remove("visible");
   stopTimer();
   switchToTab("arrivals");
@@ -558,11 +651,11 @@ async function showStopInfo(stopProperties) {
   }
   if (stopProperties.stop_type_code === 'ΕΞΥΠΝΗ ΣΤΑΣΗ') {
     const iconWrapper = document.createElement('span');
-    iconWrapper.className = 'access-icon-wrapper tooltip-trigger'; 
+    iconWrapper.className = 'access-icon-wrapper tooltip-trigger';
     iconWrapper.title = 'Smart Stop';
     iconWrapper.innerHTML = smartStopIconSvg;
     iconWrapper.addEventListener('click', (e) => {
-      e.stopPropagation(); 
+      e.stopPropagation();
       const iconRect = e.currentTarget.getBoundingClientRect();
       delayTooltip.textContent = "This Stop has an Arrivals Screen";
       delayTooltip.style.opacity = '1';
@@ -579,19 +672,15 @@ async function showStopInfo(stopProperties) {
   currentStopRouteData = null;
 
   if (selectedHeadingMarker) {
-      map.removeLayer(selectedHeadingMarker);
+      selectedHeadingMarker.remove();
       selectedHeadingMarker = null;
   }
   if (stopProperties.heading !== undefined && stopProperties.heading !== null) {
       if (selectedStopMarker) {
-          const latlng = selectedStopMarker.getLatLng();
+          const latlng = selectedStopMarker.getLngLat();
           const bigArrowIcon = createHeadingIcon(stopProperties.heading, 65);
           if (bigArrowIcon) {
-              selectedHeadingMarker = L.marker(latlng, {
-                  icon: bigArrowIcon,
-                  pane: 'selectedArrowPane',
-                  interactive: false
-              }).addTo(map);
+              selectedHeadingMarker = new maplibregl.Marker({ element: bigArrowIcon }).setLngLat(latlng).addTo(map);
           }
       }
   }
@@ -658,7 +747,7 @@ async function fetchAndDisplayArrivals(arrivalsUrl) {
           row.dataset.routeCode = arrival.route_code;
           row.dataset.lineId = routeInfo.LineID;
           row.dataset.routeDescr = routeInfo.RouteDescrEng;
-          row.innerHTML = `<div class="arrival-lineid"><span class="lineid-text">${routeInfo.LineID}</span><span class="veh-code-text">${arrival.veh_code}</span></div><div class="arrival-descr">${routeInfo.RouteDescrEng}</div><div class="arrival-right-content"><div class="arrival-time">${arrival.btime2}'</div><div class="arrival-time-container"><button class="plot-route-icon-btn">${plotRouteIconSvg}</button><div class="btime-timer-wrapper"><svg class="timer-svg btime-timer-svg" viewBox="0 0 36 36"><path class="timer-track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path><path class="timer-progress btime-timer-progress" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path></svg><div class="timer-text btime-timer-text"></div></div></div></div>`;
+          row.innerHTML = `<div class="arrival-lineid"><span class="lineid-text">${routeInfo.LineID}</span><span class="veh-code-text">${arrival.veh_code}</span></div><div class="arrival-descr">${routeInfo.RouteDescrEng}</div><div class="arrival-right-content"><div class="arrival-time"><span class="arrival-time-min">${arrival.btime2}'</span><span class="arrival-eta">${formatEtaClock(arrival.btime2)}</span></div><div class="arrival-time-container"><button class="plot-route-icon-btn">${plotRouteIconSvg}</button><div class="btime-timer-wrapper"><svg class="timer-svg btime-timer-svg" viewBox="0 0 36 36"><path class="timer-track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path><path class="timer-progress btime-timer-progress" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path></svg><div class="timer-text btime-timer-text"></div></div></div></div>`;
           const plotBtn = row.querySelector('.plot-route-icon-btn');
           if (plotBtn) {
             plotBtn.addEventListener('click', (e) => {
@@ -736,13 +825,18 @@ stopInfoClose.addEventListener("click", () => {
   currentStopProperties = null;
   stopTimer();
   if (selectedStopMarker) {
-    map.removeLayer(selectedStopMarker);
+    selectedStopMarker.remove();
     selectedStopMarker = null;
   }
   if (selectedHeadingMarker) {
-    map.removeLayer(selectedHeadingMarker);
+    selectedHeadingMarker.remove();
     selectedHeadingMarker = null;
   }
+  // closing the panel means this stop no longer has its own selectedStopMarker
+  // to stand in for it - if it's still part of a plotted route, it needs its
+  // own highlighted dot back (updateHighlightedStops skips that while the
+  // stop's info panel is the one showing it, see currentStopProperties check there)
+  if (plottedRoutes.length > 0) updateHighlightedStops();
 });
 
 stopInfoRefresh.addEventListener("click", () => {
@@ -758,15 +852,15 @@ stopInfoRefresh.addEventListener("click", () => {
 });
 
 clearRouteButton.addEventListener('click', (e) => {
-    e.stopPropagation(); 
+    e.stopPropagation();
     if (plottedRoutes.length === 0 || isClearing) return;
-    
+
     // toggle logic
     if (deletePopup.classList.contains('visible')) {
         deletePopup.classList.remove('visible');
         return;
     }
-    
+
     manageOpenPanels('delete');
 
     // position the popup

@@ -1,6 +1,301 @@
+const dataPath = 'data/';
+
+// cached so rebuildMapLayersAfterStyleChange can rebuild after a theme
+// swap without refetching or reprocessing anything
+let mapDataCache = null;
+let mapSuburbanLinesGeoJSON = null;
+
+// everything rebuildMapLayersAfterStyleChange needs to restore after a
+// style swap wipes the old style's runtime layers - station markers are
+// plain dom markers and survive on their own, so not part of this
+function buildGLLayers(dataCache, suburbanLinesGeoJSON) {
+  ensureHeadingArrowImages();
+
+  map.addSource(SOURCE_IDS.busStops, { type: 'geojson', data: mergedStopsGeoJSON });
+
+  // added before the stops circle layer so it stacks underneath the dots
+  // (gl draws layers bottom-to-top in add order) - the arrow reads as
+  // poking out from behind the stop rather than floating on top of it
+  map.addLayer({
+    id: LAYER_IDS.stopHeading,
+    type: 'symbol',
+    source: SOURCE_IDS.busStops,
+    filter: ['!=', ['get', 'heading'], null],
+    minzoom: clickableStopZoomThreshold,
+    layout: {
+      'icon-image': headingArrowImageId(),
+      'icon-size': HEADING_ARROW_SIZE_EXPR,
+      'icon-rotate': ['get', 'heading'],
+      'icon-rotation-alignment': 'map',
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+    },
+    paint: {
+      'icon-opacity-transition': { duration: 1000 },
+    },
+  });
+
+  map.addLayer({
+    id: LAYER_IDS.stops,
+    type: 'circle',
+    source: SOURCE_IDS.busStops,
+    paint: {
+      'circle-radius': stopRadiusExpr(),
+      'circle-color': '#003366',
+      'circle-stroke-color': '#fff',
+      'circle-stroke-width': stopStrokeWeightExpr(),
+      'circle-opacity': stopFillOpacityExpr(),
+      'circle-opacity-transition': { duration: 1000 },
+    },
+  });
+
+  map.addLayer({
+    id: LAYER_IDS.stopsLabel,
+    type: 'symbol',
+    source: SOURCE_IDS.busStops,
+    layout: {
+      'text-field': ['get', 'stop_descr'],
+      'text-size': 11,
+      'text-font': ['Noto Sans Regular'],
+      'text-anchor': 'top',
+      'text-offset': [0, 1.2],
+      'text-allow-overlap': false,
+    },
+    paint: {
+      'text-color': '#1e3a5f',
+      'text-halo-color': '#fff',
+      'text-halo-width': 1.3,
+      'text-opacity-transition': { duration: 1000 },
+    },
+  });
+  applyStopLabelZoomRange();
+
+  // maplibre paint expressions can't index into a plain js object like
+  // metroLineColors/tramColors by a dynamic key, so the per-feature color
+  // is precomputed into the geojson itself instead of expressed in gl
+  dataCache.metroLinesData.features.forEach(f => {
+    f.properties.lineColor = metroLineColors[f.properties.LINE] || '#000000';
+  });
+  map.addSource(SOURCE_IDS.metroLines, { type: 'geojson', data: dataCache.metroLinesData });
+  map.addLayer({
+    id: LAYER_IDS.metroLines,
+    type: 'line',
+    source: SOURCE_IDS.metroLines,
+    paint: {
+      'line-color': ['get', 'lineColor'],
+      'line-width': 4,
+      'line-opacity': 0.8,
+    },
+  });
+
+  suburbanLinesGeoJSON.features.forEach(f => {
+    f.properties.color = f.properties.color || '#A9A9A9';
+  });
+  map.addSource(SOURCE_IDS.suburbanLines, { type: 'geojson', data: suburbanLinesGeoJSON });
+  map.addLayer({
+    id: LAYER_IDS.suburbanLines,
+    type: 'line',
+    source: SOURCE_IDS.suburbanLines,
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': 3.5,
+      'line-opacity': 0.75,
+    },
+  });
+
+  dataCache.tramLinesData.features.forEach(f => {
+    f.properties.lineColor = tramColors[f.properties.LINET] || '#c078aa';
+  });
+  map.addSource(SOURCE_IDS.tramLines, { type: 'geojson', data: dataCache.tramLinesData });
+  map.addLayer({
+    id: LAYER_IDS.tramLines,
+    type: 'line',
+    source: SOURCE_IDS.tramLines,
+    paint: {
+      'line-color': ['get', 'lineColor'],
+      'line-width': 3,
+      'line-opacity': 0.8,
+    },
+  });
+
+  addBusNetworkLayer(dataCache);
+}
+
+// separate from buildGLLayers since this data arrives later on its own
+// slower fetch - also called from buildGLLayers so a style-swap rebuild
+// restores it immediately from cache instead of re-fetching
+function addBusNetworkLayer(dataCache) {
+  if (!dataCache.allRoutesData || map.getSource(SOURCE_IDS.busNetwork)) return;
+  map.addSource(SOURCE_IDS.busNetwork, { type: 'geojson', data: dataCache.allRoutesData });
+  map.addLayer({
+    id: LAYER_IDS.busNetwork,
+    type: 'line',
+    source: SOURCE_IDS.busNetwork,
+    minzoom: routeZoomThreshold,
+    paint: {
+      'line-color': '#007BFF',
+      'line-width': 2.5,
+      'line-opacity': routeLineOpacityExpr(),
+      'line-opacity-transition': { duration: 1000 },
+    },
+  });
+}
+
+// hover label below the always-on label zoom threshold + click to open the
+// stop info panel - registered once ever, not on every rebuild. uses plain
+// map.on(event, ...) + queryRenderedFeatures against LAYER_IDS.stops
+// (rather than a layer-scoped listener) so a small pixel box can be padded
+// around the point, giving taps a bit of slack beyond the rendered dot
+const STOP_HIT_PADDING = 5;
+function queryStopAt(point) {
+  const box = [[point.x - STOP_HIT_PADDING, point.y - STOP_HIT_PADDING], [point.x + STOP_HIT_PADDING, point.y + STOP_HIT_PADDING]];
+  return map.queryRenderedFeatures(box, { layers: [LAYER_IDS.stops] })[0] || null;
+}
+
+function registerStopLayerInteractions() {
+  const stopHoverPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'stop-label-popup' });
+  map.on('mousemove', (e) => {
+    const zoom = map.getZoom();
+    if (zoom < clickableStopZoomThreshold || zoom >= getLabelZoomThreshold()) { stopHoverPopup.remove(); return; }
+    const feature = queryStopAt(e.point);
+    if (!feature) { map.getCanvas().style.cursor = ''; stopHoverPopup.remove(); return; }
+    map.getCanvas().style.cursor = 'pointer';
+    stopHoverPopup.setLngLat(e.lngLat).setHTML(`<span class="stop-label">${feature.properties.stop_descr}</span>`).addTo(map);
+  });
+  map.on('click', (e) => {
+    if (map.getZoom() < clickableStopZoomThreshold) return;
+    const feature = queryStopAt(e.point);
+    if (!feature) return;
+    stopHoverPopup.remove();
+    map.flyTo({ center: e.lngLat, zoom: 17, duration: 750 });
+    if (selectedStopMarker) selectedStopMarker.remove();
+    const style = getSelectedStopStyle();
+    selectedStopMarker = new maplibregl.Marker({ element: createDotMarkerElement(style.radius * 2, style.fillColor, { strokeWidth: style.weight }) })
+      .setLngLat(e.lngLat)
+      .addTo(map);
+    const stopProps = { ...feature.properties };
+    if (stopStreetmap.has(stopProps.StopCode)) {
+      stopProps.stop_street = stopStreetmap.get(stopProps.StopCode);
+    }
+    currentStopProperties = stopProps;
+    showStopInfo(currentStopProperties);
+  });
+}
+
+// station markers stay as bounded-count dom markers (see js/3-map-engine.js) -
+// created once, never rebuilt: unlike gl layers they aren't touched by a
+// style swap at all
+function createStationMarkers(dataCache) {
+  dataCache.metroStationsData.features.forEach((feature) => {
+    const [lng, lat] = feature.geometry.coordinates;
+    const size = getMetroIconSize(map.getZoom());
+    const el = document.createElement('div');
+    el.className = 'metro-station-icon';
+    el.style.width = `${size}px`;
+    el.style.height = `${size}px`;
+    el.innerHTML = createMetroIcon(feature.properties.MSYM);
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showMetroInfo(feature.properties);
+      map.flyTo({ center: [lng, lat], zoom: 16 });
+    });
+    const marker = new maplibregl.Marker({ element: el });
+    marker.setLngLat([lng, lat]);
+    metroStationMarkers.push({ marker, msym: feature.properties.MSYM, onMap: false });
+  });
+  lastMetroIconSize = getMetroIconSize(map.getZoom());
+
+  suburbanStopsGeoJSON.features.forEach((feature) => {
+    const [lng, lat] = feature.geometry.coordinates;
+    const size = getSuburbanIconSize(map.getZoom());
+    const el = document.createElement('div');
+    el.className = 'suburban-station-icon';
+    el.style.width = `${size}px`;
+    el.style.height = `${size}px`;
+    el.innerHTML = createSuburbanIcon(feature.properties.groups);
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showSuburbanInfo(feature.properties);
+      map.flyTo({ center: [lng, lat], zoom: 16 });
+    });
+    const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]);
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'train-station-label';
+    labelEl.textContent = feature.properties.name;
+    const labelMarker = new maplibregl.Marker({ element: labelEl, anchor: 'top', offset: [0, 6] }).setLngLat([lng, lat]);
+
+    suburbanStationMarkers.push({ marker, labelMarker, groups: feature.properties.groups, onMap: false });
+  });
+  lastSuburbanIconSize = getSuburbanIconSize(map.getZoom());
+
+  dataCache.tramStopsData.features.forEach((feature) => {
+    const [lng, lat] = feature.geometry.coordinates;
+    const el = document.createElement('div');
+    el.className = 'tram-station-icon';
+    el.style.width = '18px';
+    el.style.height = '18px';
+    el.innerHTML = createTramIcon(feature.properties.LINE_T);
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showTramInfo(feature.properties);
+      map.flyTo({ center: [lng, lat], zoom: 16 });
+    });
+    const marker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]);
+    tramStationMarkers.push({ marker, onMap: false });
+  });
+
+  // ferry gates - same dot styling and size as the metro stations
+  // (createFerryIcon mirrors createMetroIcon), fixed coordinates rather
+  // than a fetched dataset since there's only nine of them
+  ferryStops.forEach((stop) => {
+    const size = getMetroIconSize(map.getZoom());
+    const el = document.createElement('div');
+    el.className = 'ferry-station-icon';
+    el.style.width = `${size}px`;
+    el.style.height = `${size}px`;
+    el.innerHTML = createFerryIcon(stop.gate);
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showFerryInfo(stop.gate);
+      map.flyTo({ center: [stop.lng, stop.lat], zoom: 16 });
+    });
+    const marker = new maplibregl.Marker({ element: el }).setLngLat([stop.lng, stop.lat]);
+    ferryStationMarkers.push({ marker, gate: stop.gate, onMap: false });
+  });
+}
+
+// called by js/3-map-engine.js's onThemeChange once the newly-swapped style
+// has finished loading
+function rebuildMapLayersAfterStyleChange() {
+  if (!mapDataCache) return;
+  buildGLLayers(mapDataCache, mapSuburbanLinesGeoJSON);
+}
+
+function buildMapLayers(dataCache, suburbanLinesGeoJSON) {
+  mapDataCache = dataCache;
+  mapSuburbanLinesGeoJSON = suburbanLinesGeoJSON;
+
+  buildGLLayers(dataCache, suburbanLinesGeoJSON);
+  registerStopLayerInteractions();
+  createStationMarkers(dataCache);
+
+  updateAllMapView();
+  hideLoader();
+  updateButtonPosition();
+  applyMapTheme();
+
+  return fetchAndDecompressGzip(`${dataPath}BasicRoutes_pg.json.gz`)
+    .then(allRoutes => {
+      dataCache.allRoutesData = allRoutes;
+      addBusNetworkLayer(dataCache);
+      updateAllLayers();
+    })
+    .catch(err => console.warn('Bus network background load failed:', err));
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  const dataCache = {}; 
-  const dataPath = 'data/'; 
+  const dataCache = {};
 
   const schedulePanelObserver = new MutationObserver(() => {
     updateButtonPosition();
@@ -14,7 +309,7 @@ document.addEventListener("DOMContentLoaded", () => {
   updateProgressBar(5);
 
   const fetchAndMergeGzippedGeoJSON = async (filePaths) => {
-    const promises = filePaths.map(path => fetchAndDecompressGzip(`${dataPath}${path}.gz`)); 
+    const promises = filePaths.map(path => fetchAndDecompressGzip(`${dataPath}${path}.gz`));
     const geojsonParts = await Promise.all(promises);
     let mergedFeatures = [];
     geojsonParts.forEach(part => {
@@ -110,7 +405,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (rawHeading !== undefined && rawHeading !== null) {
                 let h = parseInt(rawHeading, 10);
                 if (!isNaN(h)) {
-                    if (h === -1) h = 0; 
+                    if (h === -1) h = 0;
                     entry.heading = h;
                 }
             }
@@ -133,61 +428,16 @@ document.addEventListener("DOMContentLoaded", () => {
             geometry: f.geometry,
             properties: {
               StopCode: f.properties.stop_code,
+              StopCodeStr: String(f.properties.stop_code),
               stop_descr: f.properties.stop_descr,
               ramp: f.properties.ramp || "OXI",
               stop_type_code: f.properties.stoptyp_code || null,
               live_board: liveBoardCodes.has(f.properties.stop_code) ? "NAI" : "OXI",
-              heading: extra.heading 
+              heading: extra.heading
             },
           };
         }),
       };
-
-      const initialRadius = getStopRadius(map.getZoom());
-      const initialStyle = { ...baseStopStyle, radius: initialRadius };
-
-      stopsLayerNotInteractive = L.geoJSON(mergedStopsGeoJSON, {
-        renderer: busStopsCanvasRenderer,
-        pointToLayer: (_f, l) => L.circleMarker(l, { ...initialStyle, interactive: false }),
-      });
-
-      stopsLayerInteractive = L.geoJSON(mergedStopsGeoJSON, {
-        renderer: busStopsSvgRenderer,
-        pointToLayer: (_feature, latlng) => L.circleMarker(latlng, { ...initialStyle, className: "interactive-stop-dot" }),
-        onEachFeature: (feature, layer) => {
-          layer.bindTooltip(feature.properties.stop_descr, { permanent: false, direction: "bottom", offset: [0, 8], className: "stop-label" });
-          layer.on('mouseover', function () { this.openTooltip(); });
-          layer.on('mouseout', function () {
-            if (map.getZoom() < getLabelZoomThreshold()) { this.closeTooltip(); }
-          });
-          layer.on("click", (e) => {
-            L.DomEvent.stopPropagation(e);
-            map.flyTo(e.latlng, 17, { duration: 0.75 });
-            if (selectedStopMarker) map.removeLayer(selectedStopMarker);
-            selectedStopMarker = L.circleMarker(e.latlng, { ...getSelectedStopStyle(), pane: "selectedStopPane" }).addTo(map);
-            const stopProps = e.target.feature.properties;
-            if (stopStreetmap.has(stopProps.StopCode)) {
-              stopProps.stop_street = stopStreetmap.get(stopProps.StopCode);
-            }
-            currentStopProperties = stopProps;
-            showStopInfo(currentStopProperties);
-          });
-        },
-      });
-
-      stopsHeadingLayer = L.layerGroup(); 
-      stopsHeadingLayer = L.geoJSON(mergedStopsGeoJSON, {
-        pointToLayer: (feature, latlng) => {
-            const icon = createHeadingIcon(feature.properties.heading);
-            if (!icon) return null;
-            return L.marker(latlng, { icon: icon, pane: 'headingPane', interactive: false });
-        }
-      });
-
-      metroLayer = L.geoJSON(dataCache.metroLinesData, {
-        style: (feature) => ({ color: metroLineColors[feature.properties.LINE] || '#000000', weight: 4, opacity: 0.8 }),
-        pane: 'metroPane'
-      }).addTo(map);
 
       suburbanGroupColors = new Map(dataCache.trainsData.groups.map(g => [g.name, g.color]));
       suburbanStopGroupsByGovId = new Map();
@@ -241,70 +491,9 @@ document.addEventListener("DOMContentLoaded", () => {
           });
         })
         .catch(err => console.error('Failed to load greek station names for search:', err));
-      suburbanLayer = L.geoJSON(suburbanLinesGeoJSON, {
-        style: (feature) => ({ color: feature.properties.color || '#A9A9A9', weight: 3.5, opacity: 0.75 }),
-        pane: 'suburbanPane'
-      }).addTo(map);
-      tramLayer = L.geoJSON(dataCache.tramLinesData, {
-        style: (feature) => ({ color: tramColors[feature.properties.LINET] || '#c078aa', weight: 3, opacity: 0.8 }),
-        pane: 'tramPane'
-      }).addTo(map);
-      metroStationsLayer = L.geoJSON(dataCache.metroStationsData, {
-        pointToLayer: (feature, latlng) => {
-          const size = getMetroIconSize(map.getZoom());
-          const icon = L.divIcon({ html: createMetroIcon(feature.properties.MSYM), className: 'metro-station-icon', iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
-          return L.marker(latlng, { icon: icon, pane: 'metroStationPane' });
-        },
-        onEachFeature: (feature, layer) => { layer.on('click', (e) => { L.DomEvent.stopPropagation(e); showMetroInfo(feature.properties); map.flyTo(e.latlng, 16); }); }
-      });
-      suburbanStationsLayer = L.geoJSON(suburbanStopsGeoJSON, {
-        pointToLayer: (feature, latlng) => {
-          const size = getSuburbanIconSize(map.getZoom());
-          const icon = L.divIcon({ html: createSuburbanIcon(feature.properties.groups), className: 'suburban-station-icon', iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
-          return L.marker(latlng, { icon: icon, pane: 'suburbanStationPane' });
-        },
-        onEachFeature: (feature, layer) => {
-          layer.bindTooltip(feature.properties.name, { className: 'train-station-label', direction: 'bottom', offset: [0, 6] });
-          layer.on('click', (e) => {
-            L.DomEvent.stopPropagation(e);
-            showSuburbanInfo(feature.properties);
-            map.flyTo(e.latlng, 16);
-          });
-        }
-      });
-      tramStationsLayer = L.geoJSON(dataCache.tramStopsData, {
-        pointToLayer: (feature, latlng) => L.marker(latlng, { icon: L.divIcon({ html: createTramIcon(feature.properties.LINE_T), className: 'tram-station-icon', iconSize: [18, 18], iconAnchor: [9, 9] }), pane: 'tramStationPane' }),
-        onEachFeature: (feature, layer) => { layer.on('click', (e) => { L.DomEvent.stopPropagation(e); showTramInfo(feature.properties); map.flyTo(e.latlng, 16); }); }
-      });
 
-      plottedStopsLayer = L.featureGroup().addTo(map);
-      updateAllMapView();
-      hideLoader();
-      updateButtonPosition();
-
-      // keep stop colours in sync with the active theme
-      const stopFills = { light: '#003366', dark: '#4d94ff' };
-      function applyStopTheme() {
-        const fill = stopFills[document.documentElement.getAttribute('data-theme')] || stopFills.light;
-        const zoom = map.getZoom();
-        const style = { fillColor: fill, ...getStopStrokeStyle(zoom) };
-        if (stopsLayerInteractive)    stopsLayerInteractive.setStyle(style);
-        if (stopsLayerNotInteractive) stopsLayerNotInteractive.setStyle(style);
-      }
-      new MutationObserver(applyStopTheme)
-        .observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-      applyStopTheme();
-
-      fetchAndDecompressGzip(`${dataPath}BasicRoutes_pg.json.gz`)
-        .then(allRoutes => {
-          dataCache.allRoutesData = allRoutes;
-          routesLayer = L.geoJSON(allRoutes, {
-            renderer: myCanvasRenderer,
-            style: getRouteStyle(map.getZoom()),
-          });
-          updateAllMapView();
-        })
-        .catch(err => console.warn('Bus network background load failed:', err));
+      // everything below touches the map, so it waits for the style to finish loading
+      return mapLoadPromise.then(() => buildMapLayers(dataCache, suburbanLinesGeoJSON));
     })
     .catch((error) => {
       console.error("Error during initial data load:", error);

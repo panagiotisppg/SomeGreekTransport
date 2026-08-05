@@ -360,7 +360,7 @@ function locateTimetableTrainOnMap(scheduleId) {
   const pos = liveTrainPositionsByScheduleId.get(scheduleId);
   if (!marker || !pos) return;
   closeTrainTimetable();
-  map.flyTo(marker.getLatLng(), Math.max(map.getZoom(), 15), { duration: 0.75 });
+  map.flyTo({ center: marker.getLngLat(), zoom: Math.max(map.getZoom(), 15), duration: 750 });
   const id = pos.id || pos.trainId;
   if (id) openLiveTrainSheet(id);
 }

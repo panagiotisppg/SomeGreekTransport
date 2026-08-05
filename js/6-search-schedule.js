@@ -110,16 +110,10 @@ function populateScheduleRoutes(routesArray, lineID) {
   updateArrivalsUIState();
 }
 
-// the train/suburban stops dataset stores names transliterated to latin
-// (eg "Aerodromio") rather than greek, so a greek query has to be
-// converted to match it instead of the other way around like the bus
-// stops - toGreeklish alone still misses a lot though, since this
-// datasets own transliteration convention disagrees with it on a couple
-// of very common letters (eta as "i" not "h", chi as "ch" not "x"), so
-// this tries that alternate spelling too. a handful of major hubs are
-// translated outright rather than transliterated at all (eg "Airport"),
-// which no transliteration scheme can bridge, so those get a small
-// explicit alias instead
+// train/suburban stop names are stored transliterated to latin, and
+// disagree with toGreeklish on a couple letters (eta as "i" not "h", chi
+// as "ch" not "x") - a few hubs are translated outright (eg "Airport")
+// so those get an explicit alias instead
 const trainStopNameAliases = {
   'αεροδρόμιο': 'airport',
   'αθήνα': 'athens',
@@ -267,8 +261,7 @@ function renderSearchResults(results, type) {
         row.innerHTML = `${iconHtml}<div class="search-result-name">${item.properties.name}</div><div class="search-result-lines">${pillsHtml}</div>`;
         row.onclick = () => {
           const coords = item.geometry.coordinates;
-          const latlng = L.latLng(coords[1], coords[0]);
-          map.flyTo(latlng, 16, { duration: 0.75 });
+          map.flyTo({ center: coords, zoom: 16, duration: 750 });
           showSuburbanInfo(item.properties);
           clearAndHideSearch();
         };
@@ -279,7 +272,7 @@ function renderSearchResults(results, type) {
         let iconHtml = '<svg class="search-result-icon" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="#003366" stroke="white" stroke-width="1"/></svg>';
         if (statusSet) {
           if (statusSet.size > 1) {
-            iconHtml = createSharedStopIcon().options.html;
+            iconHtml = createSharedStopIconSvg().replace('<svg ', '<svg class="search-result-icon" ');
           } else {
             const color = statusSet.values().next().value;
             iconHtml = `<svg class="search-result-icon" width="14" height="14" viewBox="0 0 14 14"><circle cx="7" cy="7" r="6" fill="${colorHex[color]}" stroke="white" stroke-width="1"/></svg>`;
@@ -287,14 +280,17 @@ function renderSearchResults(results, type) {
         }
         row.innerHTML = `${iconHtml}<div class="search-result-name">${item.properties.stop_descr}</div><div class="search-result-stop-street">(Street: ${street})</div>`;
         row.onclick = () => {
-          if (selectedStopMarker) map.removeLayer(selectedStopMarker);
-          if (selectedHeadingMarker) map.removeLayer(selectedHeadingMarker);
-          const latlng = L.latLng(item.geometry.coordinates[1], item.geometry.coordinates[0]);
-          map.flyTo(latlng, 17, { duration: 0.75 });
+          if (selectedStopMarker) selectedStopMarker.remove();
+          if (selectedHeadingMarker) selectedHeadingMarker.remove();
+          const lngLat = item.geometry.coordinates;
+          map.flyTo({ center: lngLat, zoom: 17, duration: 750 });
           const stopProps = item.properties;
           stopProps.stop_street = street;
           currentStopProperties = stopProps;
-          selectedStopMarker = L.circleMarker(latlng, { ...getSelectedStopStyle(), pane: "selectedStopPane", }).addTo(map);
+          const style = getSelectedStopStyle();
+          selectedStopMarker = new maplibregl.Marker({ element: createDotMarkerElement(style.radius * 2, style.fillColor, { strokeWidth: style.weight }) })
+            .setLngLat(lngLat)
+            .addTo(map);
           showStopInfo(currentStopProperties);
           clearAndHideSearch();
         };

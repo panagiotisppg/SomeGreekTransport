@@ -12,13 +12,13 @@ function hideLoader() {
     // the map got its initial view the instant js/3-map-engine.js parsed,
     // which can be before the real mobile viewport height had settled -
     // the loading overlay has kept the map untouched this whole time, so
-    // its safe here to resync leaflets cached container size and reapply
+    // its safe here to resync maplibres cached container size and reapply
     // the real starting view, clearing out any drift a stale size baked
     // into that first setview (this is what made the map sometimes start
     // off center, and every flyto after it land off too)
     if (map) {
-      map.invalidateSize();
-      map.setView([37.9838, 23.7275], 12);
+      map.resize();
+      map.jumpTo({ center: [23.7275, 37.9838], zoom: 12 });
     }
   }, 1200);
 }
@@ -71,17 +71,13 @@ function clearDemotedPanels() {
   if (typeof closeLiveTrainSheet === 'function') closeLiveTrainSheet();
 }
 
-// on mobile a closed station/schedule sheet only ever slides itself off
-// screen via transform (its own close button never clears its content or
-// touches manageOpenPanels, which doesnt know about these sheets at all)
-// so opening something that should own the whole screen - search, the
-// timetable board - explicitly re-closes every one of them instead of
-// trusting that they already are, which is what let an already "closed"
-// sheet still show through underneath
+// a closed sheet only slides off via transform, its content stays live -
+// force-close them all here so nothing shows through underneath
 function closeAllInfoPanels() {
   stopTimer();
   stopSuburbanTimer();
-  [stopInfoPanel, metroStationPanel, suburbanStationPanel, tramStationPanel, schedulePanel].forEach((panel) => {
+  if (typeof stopFerryCountdownTicker === 'function') stopFerryCountdownTicker();
+  [stopInfoPanel, metroStationPanel, suburbanStationPanel, tramStationPanel, ferryStationPanel, schedulePanel].forEach((panel) => {
     if (panel) panel.classList.remove('visible');
   });
   clearDemotedPanels();
@@ -190,6 +186,54 @@ async function fetchAndDecompressGzip(filePath) {
   const decompressed = pako.inflate(compressed);
   const text = new TextDecoder("utf-8").decode(decompressed);
   return JSON.parse(text);
+}
+
+// map helpers - maplibre has no divicon or lat/lng distance helper built in
+function elFromHTML(html) {
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = html.trim();
+  return wrapper.firstElementChild;
+}
+
+// straight-line (haversine) distance in meters between two {lat,lng} points
+// clock time a bus/train is expected at, given "arrives in N minutes" -
+// used as the smaller sub-line under a stop's own minutes-until countdown
+function formatEtaClock(minutesFromNow) {
+  const mins = parseInt(minutesFromNow, 10);
+  if (isNaN(mins)) return '';
+  const eta = new Date(Date.now() + mins * 60000);
+  const hh = String(eta.getHours()).padStart(2, '0');
+  const mm = String(eta.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+function distanceMeters(a, b) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat), lat2 = toRad(b.lat);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+// plain circular dot marker element, replaces L.circleMarker for the bounded-count
+// dot markers that stayed as DOM markers (selected stop, plotted route stops)
+function createDotMarkerElement(diameter, fillColor, { strokeColor = "#fff", strokeWidth = 1.5 } = {}) {
+  const el = document.createElement("div");
+  el.className = "dot-marker";
+  el.style.width = `${diameter}px`;
+  el.style.height = `${diameter}px`;
+  el.style.backgroundColor = fillColor;
+  el.style.border = `${strokeWidth}px solid ${strokeColor}`;
+  return el;
+}
+
+// no canvas filter runs in dark mode (see styles.css) - the map keeps its
+// light style and every custom color renders as configured in both themes.
+// this only matters to the app's own dom ui at this point (panels, buttons)
+function isDarkTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'dark';
 }
 
 // init circle settings and gestures

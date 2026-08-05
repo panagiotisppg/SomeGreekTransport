@@ -103,12 +103,8 @@
 /* ─── base ─────────────────────────────────────────────────────────────────── */
 html, body {
     height: 100%;
-    /* 100% resolves to the full page height ignoring mobile safari/chromes
-       own bottom toolbar so bottom:0 sheets end up anchored behind it
-       dvh and svh are a better guess but still css only - --app-vh is set
-       in index.html from window visualviewport the browsers own live
-       answer for whats actually visible right now and it wins wherever
-       its available with these as just its fallback chain before it runs */
+    /* --app-vh (set from visualViewport in index.html) wins when available,
+       these are just its fallback chain */
     height: 100dvh;
     height: 100svh;
     height: var(--app-vh, 100svh);
@@ -158,27 +154,26 @@ input[type="text"] {
     outline: none;
 }
 
-/* leaflet sets overflow hidden on the map container which clips any popup
+/* maplibre sets overflow hidden on the map container which clips any popup
    that extends past its edge instead of just repositioning it
-   popups have their own pane on top so letting this overflow doesnt
-   affect tile rendering and keeps popups fully visible near screen edges */
-#map.leaflet-container {
+   popups render above the canvas so letting this overflow doesnt affect
+   tile rendering and keeps popups fully visible near screen edges */
+#map.maplibregl-map {
     overflow: visible;
 }
 
-/* dark map tiles via invert trick */
-[data-theme="dark"] .leaflet-tile-pane {
-    filter: invert(1) hue-rotate(180deg) brightness(0.86) contrast(0.88) saturate(0.75);
-}
+/* no canvas filter - dark mode swaps to a real dark base style instead
+   (MAP_STYLES in js/3-map-engine.js), so our own colors (stops, routes,
+   metro/tram/suburban lines) render exactly as configured in both themes */
 
-/* leaflet ui overrides for dark mode */
-[data-theme="dark"] .leaflet-bar a {
+/* maplibre ui overrides for dark mode - only the attribution control is
+   ever shown (no zoom control was added) */
+[data-theme="dark"] .maplibregl-ctrl-attrib {
     background-color: var(--btn-bg);
     color: var(--text-1);
-    border-color: var(--btn-border);
 }
-[data-theme="dark"] .leaflet-bar a:hover {
-    background-color: var(--surface-hover);
+[data-theme="dark"] .maplibregl-ctrl-attrib a {
+    color: var(--text-1);
 }
 
 /* ─── loading overlay ─────────────────────────────────────────────────────── */
@@ -450,6 +445,7 @@ input[type="text"] {
 #metro-station-panel,
 #suburban-station-panel,
 #tram-station-panel,
+#ferry-station-panel,
 #live-train-panel,
 #train-timetable-panel {
     background: var(--surface);
@@ -693,9 +689,24 @@ input[type="text"] {
 }
 
 .arrival-time {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.15;
+}
+
+.arrival-time-min {
     font-size: 14px;
     font-weight: 700;
     color: var(--text-1);
+}
+
+.arrival-eta {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+    margin-top: 3px;
 }
 
 /* line rows */
@@ -1712,7 +1723,164 @@ input[type="text"] {
     color: var(--text-1);
 }
 
-.tram-station-icon { cursor: pointer; }
+.tram-station-icon, .ferry-station-icon { cursor: pointer; }
+
+/* ─── ferry gate panel ────────────────────────────────────────────────────── */
+#ferry-station-panel {
+    top: 68px;
+    right: 12px;
+    width: 460px;
+    max-width: calc(85% - 24px);
+    max-height: calc(100vh - 100px);
+    display: flex;
+    flex-direction: column;
+    transform: translateX(calc(100% + 16px));
+    pointer-events: none;
+    opacity: 0;
+}
+
+#ferry-station-panel.visible {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#ferry-station-header {
+    display: flex;
+    align-items: center;
+    padding: 14px 14px 12px;
+    border-bottom: 1px solid var(--sep);
+    flex-shrink: 0;
+}
+
+#ferry-station-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-1);
+    margin: 0;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#ferry-station-title .metro-panel-icon { width: 22px; height: 22px; }
+
+.ferry-title-ship-icon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--accent-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#ferry-station-updated {
+    font-size: 10px;
+    color: var(--text-3);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+#ferry-station-close {
+    font-size: 20px;
+    color: var(--text-3);
+    cursor: pointer;
+    transition: color 0.2s;
+    padding: 2px;
+}
+
+#ferry-station-close:hover { color: var(--text-1); }
+
+#ferry-station-content {
+    padding: 14px;
+    overflow-y: auto;
+}
+
+.ferry-schedule-section:not(:first-child) { margin-top: 16px; }
+
+.ferry-schedule-section p {
+    margin: 0 0 6px 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ferry-schedule-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 12px;
+    margin-bottom: 7px;
+    border-radius: var(--r-md);
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.ferry-schedule-row:last-child { margin-bottom: 0; }
+
+.ferry-row-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    gap: 8px;
+}
+
+.ferry-row-ship {
+    min-width: 0;
+    flex-shrink: 1;
+    font-weight: 700;
+    color: var(--text-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ferry-row-pills {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+/* datetime pill comes first (left) and sits in front (z-index 2); the
+   duration pill comes second (right) but slides left under it with a
+   negative margin, so only its right portion + edge peeks out from behind
+   the datetime pill instead of the two just sitting side by side */
+.ferry-pill-datetime {
+    position: relative;
+    z-index: 2;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 4px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 3px 0 4px -2px rgba(0, 0, 0, 0.25);
+}
+
+.ferry-pill-duration {
+    position: relative;
+    z-index: 1;
+    margin-left: -14px;
+    background: var(--accent-2);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px 4px 18px;
+    border-radius: 999px;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
 
 /* a fixed sheet instead of a map anchored popup so it always has a proper
    spot on screen regardless of where the trains dot happens to be
@@ -2126,6 +2294,7 @@ input[type="text"] {
 
 /* ─── map control buttons ─────────────────────────────────────────────────── */
 .custom-controls-container {
+    position: absolute;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -2140,6 +2309,7 @@ input[type="text"] {
 #location-button,
 #layer-control-button,
 #theme-toggle,
+#compass-button,
 #timetable-button {
     width: 36px;
     height: 36px;
@@ -2160,6 +2330,7 @@ input[type="text"] {
 #location-button:hover,
 #layer-control-button:hover,
 #theme-toggle:hover,
+#compass-button:hover,
 #timetable-button:hover {
     background-color: var(--surface-hover);
     box-shadow: var(--shadow-md);
@@ -2170,6 +2341,7 @@ input[type="text"] {
 #location-button:active,
 #layer-control-button:active,
 #theme-toggle:active,
+#compass-button:active,
 #timetable-button:active {
     transform: scale(0.96);
 }
@@ -2202,6 +2374,9 @@ input[type="text"] {
 
 /* theme toggle icons */
 #theme-toggle svg { width: 18px; height: 18px; fill: var(--text-2); transition: fill 0.2s; }
+
+#compass-icon { color: var(--text-2); transition: color 0.2s, transform 0.25s ease; }
+#compass-button:hover #compass-icon { color: var(--accent); }
 #theme-toggle:hover svg { fill: var(--accent); }
 #theme-icon-sun  { display: none; }
 [data-theme="dark"] #theme-icon-moon { display: none; }
@@ -2757,18 +2932,38 @@ input:checked + .slider:before { transform: translateX(20px); }
 .bus-icon-vehno  { font-size: 8px; opacity: 0.75; }
 
 /* ─── stop markers ────────────────────────────────────────────────────────── */
-.shared-stop-icon {}
+/* no position here - maplibre's own .maplibregl-marker already sets
+   absolute on this element, redeclaring it broke pan tracking */
+/* z-index:1 keeps these above a same-stop heading arrow regardless of add order */
+.shared-stop-icon { display: inline-block; z-index: 1; }
 
-.interactive-stop-dot {
-    stroke: white;
-    stroke-width: 1.5px;
-    fill-opacity: 1;
-    cursor: pointer;
+/* selected stop + plotted-route highlighted stops - the bounded-count dot
+   markers that stayed as dom elements instead of becoming a gl layer */
+.dot-marker {
+    box-sizing: border-box;
+    border-radius: 50%;
+    z-index: 1;
 }
 
-.interactive-stop-dot path {
-    stroke: #fff;
-    stroke-width: 1px;
+/* hover/permanent name label under a plotted-route stop dot (js/5-bus-logic.js) -
+   same look as the bulk stop-label gl text but as real dom, since these are
+   dom markers, toggled permanently-visible via .visible same as
+   train-station-label */
+.plotted-stop-label {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 4px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+}
+.dot-marker:hover .plotted-stop-label,
+.shared-stop-icon:hover .plotted-stop-label,
+.plotted-stop-label.visible {
+    opacity: 1;
 }
 
 /* ─── heading arrow ───────────────────────────────────────────────────────── */
@@ -2777,6 +2972,8 @@ input:checked + .slider:before { transform: translateX(20px); }
     align-items: center;
     justify-content: center;
     pointer-events: none;
+    /* no negative z-index here - would escape the marker layer and paint
+       behind the whole canvas, not just the dot */
 }
 
 .heading-svg {
@@ -2806,12 +3003,15 @@ input:checked + .slider:before { transform: translateX(20px); }
                  -1px 1px 0 rgba(0,0,0,0.9),  1px 1px 0 rgba(0,0,0,0.9);
 }
 
-.stop-label::before,
-.stop-label::after,
-.leaflet-tooltip-bottom.stop-label::before,
-.leaflet-tooltip-bottom.stop-label::after {
-    display: none !important;
-    border: none !important;
+/* the bulk stop-name layer is native gl text (js/7-main.js LAYER_IDS.stopsLabel)
+   so .stop-label only still applies as real dom css for the hover popup
+   below the always-on label zoom threshold and the plotted-route stop
+   labels (js/5-bus-logic.js) - both plain floating text with no bubble */
+.stop-label-popup .maplibregl-popup-tip { display: none; }
+.stop-label-popup .maplibregl-popup-content {
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
 }
 
 /* ─── train station labels ────────────────────────────────────────────────── */
@@ -2819,7 +3019,15 @@ input:checked + .slider:before { transform: translateX(20px); }
    since these sit directly on the map like the bus stop labels do just
    always the same two colors instead of following light/dark like
    stop-label does */
+/* plain dom span, its own maplibregl.Marker anchored just below the
+   station icon's own marker (js/7-main.js) - visibility toggled by the
+   .visible class from updateTrainStationLabels() in js/3-map-engine.js */
 .train-station-label {
+    display: block;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s;
+    white-space: nowrap;
     background-color: transparent;
     border: none;
     box-shadow: none;
@@ -2831,27 +3039,19 @@ input:checked + .slider:before { transform: translateX(20px); }
     margin-top: 5px;
     text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
 }
-
-.train-station-label::before,
-.train-station-label::after,
-.leaflet-tooltip-bottom.train-station-label::before,
-.leaflet-tooltip-bottom.train-station-label::after {
-    display: none !important;
-    border: none !important;
+.train-station-label.visible {
+    opacity: 1;
 }
 
 /* ─── bus popup map ─────────────────────────────────────────────────────── */
-.bus-popup .leaflet-popup-content-wrapper {
+.bus-popup .maplibregl-popup-content {
     background: rgba(15, 23, 42, 0.93);
     color: #f1f5f9;
     border-radius: var(--r-sm);
-    padding: 0;
+    margin: 0;
+    padding: 6px 11px;
     box-shadow: var(--shadow-md);
     border: 1px solid rgba(255,255,255,0.15);
-}
-
-.bus-popup .leaflet-popup-content {
-    margin: 6px 11px;
     font-size: 11px;
     font-weight: 500;
     line-height: 1.4;
@@ -2859,11 +3059,14 @@ input:checked + .slider:before { transform: translateX(20px); }
     font-family: var(--font);
 }
 
-.bus-popup .leaflet-popup-tip { background: rgba(15, 23, 42, 0.93); }
-.bus-popup a.leaflet-popup-close-button { display: none; }
+.bus-popup .maplibregl-popup-tip {
+    border-top-color: rgba(15, 23, 42, 0.93);
+    border-bottom-color: rgba(15, 23, 42, 0.93);
+}
+.bus-popup .maplibregl-popup-close-button { display: none; }
 
 /* ─── live train hover tooltip ──────────────────────────────────────────── */
-.leaflet-tooltip.live-train-tooltip-wrapper {
+.live-train-tooltip-wrapper .maplibregl-popup-content {
     background: rgba(15, 23, 42, 0.93);
     color: #f1f5f9;
     border: 1px solid rgba(255,255,255,0.15);
@@ -2873,8 +3076,9 @@ input:checked + .slider:before { transform: translateX(20px); }
     font-family: var(--font);
 }
 
-.leaflet-tooltip.live-train-tooltip-wrapper::before {
+.live-train-tooltip-wrapper .maplibregl-popup-tip {
     border-top-color: rgba(15, 23, 42, 0.93);
+    border-bottom-color: rgba(15, 23, 42, 0.93);
 }
 
 .live-train-tooltip {
@@ -3057,6 +3261,7 @@ html.theme-transition *::after {
     #metro-station-panel,
     #suburban-station-panel,
     #tram-station-panel,
+    #ferry-station-panel,
     #live-train-panel {
         top: auto;
         bottom: 0;
@@ -3090,6 +3295,7 @@ html.theme-transition *::after {
     #metro-station-panel.visible,
     #suburban-station-panel.visible,
     #tram-station-panel.visible,
+    #ferry-station-panel.visible,
     #live-train-panel.visible {
         transform: translateY(0);
         visibility: visible;
@@ -3101,6 +3307,7 @@ html.theme-transition *::after {
     #suburban-station-panel { max-height: 45svh; }
     #suburban-station-content { max-height: 32svh; }
     #live-train-panel { max-height: 45svh; }
+    #ferry-station-panel { max-height: 50svh; }
 
     #stop-info-header  { padding-bottom: 8px; margin-bottom: 10px; gap: 6px; }
     #stop-info-title   { font-size: 14px; }
@@ -3111,7 +3318,8 @@ html.theme-transition *::after {
     .arrival-row    { padding: 7px 8px; }
     .arrival-lineid { font-size: 12px; padding: 4px 7px; min-width: 38px; }
     .arrival-descr  { font-size: 11px; padding: 0 6px; }
-    .arrival-time   { font-size: 13px; }
+    .arrival-time-min { font-size: 13px; }
+    .arrival-eta    { font-size: 9px; }
 
     .btime-timer-wrapper { width: 24px; height: 24px; }
 

@@ -34,11 +34,20 @@ const tramStationPanel = document.getElementById("tram-station-panel");
 const tramStationTitle = document.getElementById("tram-station-title");
 const tramStationLines = document.getElementById("tram-station-lines");
 const tramStationClose = document.getElementById("tram-station-close");
+const ferryStationPanel = document.getElementById("ferry-station-panel");
+const ferryStationTitle = document.getElementById("ferry-station-title");
+const ferryStationClose = document.getElementById("ferry-station-close");
+const ferryStationUpdated = document.getElementById("ferry-station-updated");
+const ferryDeparturesList = document.getElementById("ferry-departures-list");
+let ferryCountdownIntervalId = null;
+const ferryArrivalsList = document.getElementById("ferry-arrivals-list");
 const liveTrainPanel = document.getElementById("live-train-panel");
 const liveTrainContent = document.getElementById("live-train-content");
 const liveTrainClose = document.getElementById("live-train-close");
 const liveTrainHeaderTitle = document.getElementById("live-train-header-title");
 const layerControlBtn = document.getElementById('layer-control-button');
+const compassButton = document.getElementById('compass-button');
+const compassIcon = document.getElementById('compass-icon');
 const layerControlPanel = document.getElementById('layer-control-panel');
 const toggleZoomOnRoute = document.getElementById('toggle-zoom-on-route'); 
 const toggleBusStops = document.getElementById('toggle-bus-stops');
@@ -105,7 +114,7 @@ let plottedRoutes = [];
 let busRefreshTimers = new Map();
 let selectedStopMarker = null;
 let selectedHeadingMarker = null;
-let plottedStopsLayer = null;
+let plottedStopMarkers = []; // {marker, isArrow, labelEl} for whatever route(s) are currently plotted
 let plottedStopCodes = new Set();
 const plottedLabelZoomThreshold = 15;
 const desktopLabelZoomThreshold = 16.5;
@@ -117,9 +126,10 @@ let mergedStopsGeoJSON = { features: [] };
 let suburbanStopsGeoJSON = { features: [] };
 let stopStreetmap = new Map();
 let userLocationMarker = null;
-let stopsLayerNotInteractive, stopsLayerInteractive, routesLayer, stopsHeadingLayer;
-let metroLayer, metroStationsLayer, suburbanLayer, suburbanStationsLayer, tramLayer, tramStationsLayer;
-let isUpdatingHeadings = false;
+// station markers stay as plain maplibregl.Marker DOM objects (bounded counts);
+// the bulk line/stop/heading layers are static GL sources+layers, referenced
+// directly by id (see LAYER_IDS/SOURCE_IDS in js/3-map-engine.js) instead of vars
+let metroStationMarkers = [], suburbanStationMarkers = [], tramStationMarkers = [], ferryStationMarkers = [];
 let notificationTimeout = null;
 
 let suburbanGroupColors = new Map();
@@ -135,11 +145,11 @@ let timetableActiveLineKey = 'all';
 let timetableHasLoadedOnce = false;
 
 const metroColors = {
-  green: '#1f8136ff', red: '#b80600ff', blue: '#004c9eff'
+  green: '#00A651', red: '#FF0000', blue: '#0072BC'
 };
 
 const metroLineColors = {
-  1: '#1f8136ff', 2: '#b80600ff', 3: '#004c9eff', 33: '#004c9eff'
+  1: '#00A651', 2: '#FF0000', 3: '#0072BC', 33: '#0072BC'
 };
 
 const tramColors = {
@@ -155,6 +165,24 @@ const tramStopColors = {
     'T6+T7': '#751050',
     'T7+T6': '#751050'
 };
+
+// ferry gates - fixed coordinates, not from a fetched dataset like the bus/
+// metro/tram/suburban networks, since there's only the nine of them
+const ferryGateColors = {
+  E1: '#FFD400', E2: '#186363', E3: '#3F9895', E4: '#166A6E',
+  E5: '#2E86DE', E6: '#2E86DE', E7: '#486897', E8: '#5895C7', E9: '#AB818F',
+};
+const ferryStops = [
+  { gate: 'E1', lat: 37.94175915296795, lng: 23.621762116555853 },
+  { gate: 'E2', lat: 37.94414616241132, lng: 23.634584432238935 },
+  { gate: 'E3', lat: 37.948951417408736, lng: 23.63625870448982 },
+  { gate: 'E4', lat: 37.94923966316867, lng: 23.638822532346353 },
+  { gate: 'E5', lat: 37.9488105922858, lng: 23.642057609214838 },
+  { gate: 'E6', lat: 37.9470982790955, lng: 23.641592710595596 },
+  { gate: 'E7', lat: 37.946546362195306, lng: 23.64055598883392 },
+  { gate: 'E8', lat: 37.945635271582255, lng: 23.641020222951518 },
+  { gate: 'E9', lat: 37.94254423520207, lng: 23.642783122080377 },
+];
 
 const colorHex = {
   cyan: "#146eff", green: "#28a745", darkCyan: "#2c5aa0", darkGreen: "#1d7b34",
