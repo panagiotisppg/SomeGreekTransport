@@ -202,6 +202,12 @@ function getMetroIconSize(zoom) {
   return 22;
 }
 
+// a bit bigger than the metro/tram/suburban dots - at metro size these
+// read as just another bus stop instead of a distinct port gate
+function getFerryIconSize(zoom) {
+  return getMetroIconSize(zoom) + 7;
+}
+
 function getSuburbanIconSize(zoom) {
   if (zoom < 13) return 14;
   if (zoom < 15) return 18;
@@ -345,12 +351,13 @@ function updateTrainStationIconSizes() {
       el.style.height = `${metroSize}px`;
       el.innerHTML = createMetroIcon(msym);
     });
-    // ferry gates share the metro stations' own size (same getMetroIconSize
-    // curve), not a separate one, so they resize on this same check
+    // ferry gates resize on this same zoom check, just at their own
+    // (slightly bigger) size curve
+    const ferrySize = getFerryIconSize(zoom);
     ferryStationMarkers.forEach(({ marker, gate }) => {
       const el = marker.getElement();
-      el.style.width = `${metroSize}px`;
-      el.style.height = `${metroSize}px`;
+      el.style.width = `${ferrySize}px`;
+      el.style.height = `${ferrySize}px`;
       el.innerHTML = createFerryIcon(gate);
     });
   }

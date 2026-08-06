@@ -64,18 +64,24 @@ function createFerryIcon(gate) {
   const strokeWidth = 1.5;
   const color = ferryGateColors[gate] || '#888';
   const textColor = FERRY_DARK_TEXT_GATES.has(gate) ? '#1a1a1a' : '#fff';
-  return `<svg viewBox="0 0 ${size} ${size}" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.4));"><circle cx="${center}" cy="${center}" r="${rOuter}" fill="${color}" stroke="#fff" stroke-width="${strokeWidth}"/><text x="${center}" y="${center}" text-anchor="middle" dominant-baseline="central" font-size="7" font-weight="700" font-family="var(--font)" fill="${textColor}">${gate}</text></svg>`;
+  return `<svg viewBox="0 0 ${size} ${size}" width="100%" height="100%" style="display:block; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.4));"><circle cx="${center}" cy="${center}" r="${rOuter}" fill="${color}" stroke="#fff" stroke-width="${strokeWidth}"/><text x="${center}" y="${center}" text-anchor="middle" dominant-baseline="central" font-size="7" font-weight="700" font-family="var(--font)" fill="${textColor}">${gate}</text></svg>`;
 }
 // picked by comparing each ferryGateColors fill against its yiq perceived
 // luminance (>=140 reads better with dark text than white)
 const FERRY_DARK_TEXT_GATES = new Set(['E1', 'E9']);
 
 // simple white ferry/ship silhouette (hull + cabin + bridge), used on its
-// own small blue circle badge next to the gate panel's title
+// own small blue pill badge next to the gate panel's title - the bottom
+// edge is scalloped with wave-colored semicircles (matching the badge
+// background) to read as waves lapping the hull
 function createShipGlyph() {
-  return `<svg viewBox="0 0 24 24" width="14" height="14">
+  return `<svg viewBox="-4 0 32 24" width="22" height="16">
     <path d="M12 3 L17 11 L7 11 Z" fill="white"/>
-    <path d="M0 11 L24 11 L18 22 L6 22 Z" fill="white"/>
+    <path d="M-4 11 L28 11 L20 22 L4 22 Z" fill="white"/>
+    <line x1="5" y1="10.3" x2="19" y2="10.3" stroke="var(--accent-2)" stroke-width="1"/>
+    <path d="M4 22 A2.67 2.67 0 0 1 9.33 22 Z" fill="var(--accent-2)" opacity="0.6"/>
+    <path d="M9.33 22 A2.67 2.67 0 0 1 14.67 22 Z" fill="var(--accent-2)"/>
+    <path d="M14.67 22 A2.67 2.67 0 0 1 20 22 Z" fill="var(--accent-2)" opacity="0.6"/>
   </svg>`;
 }
 

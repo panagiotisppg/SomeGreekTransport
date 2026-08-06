@@ -245,11 +245,11 @@ function createStationMarkers(dataCache) {
     tramStationMarkers.push({ marker, onMap: false });
   });
 
-  // ferry gates - same dot styling and size as the metro stations
+  // ferry gates - same dot styling as the metro stations but a bit bigger
   // (createFerryIcon mirrors createMetroIcon), fixed coordinates rather
   // than a fetched dataset since there's only nine of them
   ferryStops.forEach((stop) => {
-    const size = getMetroIconSize(map.getZoom());
+    const size = getFerryIconSize(map.getZoom());
     const el = document.createElement('div');
     el.className = 'ferry-station-icon';
     el.style.width = `${size}px`;

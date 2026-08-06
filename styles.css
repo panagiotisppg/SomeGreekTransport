@@ -1767,10 +1767,10 @@ input[type="text"] {
 #ferry-station-title .metro-panel-icon { width: 22px; height: 22px; }
 
 .ferry-title-ship-icon {
-    width: 22px;
+    width: 34px;
     height: 22px;
     flex-shrink: 0;
-    border-radius: 50%;
+    border-radius: 999px;
     background: var(--accent-2);
     display: flex;
     align-items: center;
@@ -3308,6 +3308,10 @@ html.theme-transition *::after {
     #suburban-station-content { max-height: 32svh; }
     #live-train-panel { max-height: 45svh; }
     #ferry-station-panel { max-height: 50svh; }
+
+    .ferry-row-ship { font-size: 11px; }
+    .ferry-pill-datetime, .ferry-pill-duration { font-size: 8px; padding: 3px 7px; }
+    .ferry-pill-duration { padding-left: 14px; }
 
     #stop-info-header  { padding-bottom: 8px; margin-bottom: 10px; gap: 6px; }
     #stop-info-title   { font-size: 14px; }
