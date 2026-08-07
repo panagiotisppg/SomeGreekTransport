@@ -3,6 +3,9 @@ async function showSchedulePanel(lineData) {
   if (stopInfoPanel.classList.contains('visible')) {
     stopInfoPanel.classList.add('panel-demoted');
   }
+  if (cityStopPanel.classList.contains('visible')) {
+    cityStopPanel.classList.add('panel-demoted');
+  }
   if (suburbanStationPanel.classList.contains('visible')) {
     suburbanStationPanel.classList.remove('visible');
     stopSuburbanTimer();

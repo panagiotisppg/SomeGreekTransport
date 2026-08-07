@@ -55,6 +55,7 @@ const toggleBusNetwork = document.getElementById('toggle-bus-network');
 const toggleMetroNetwork = document.getElementById('toggle-metro-network');
 const toggleTramNetwork = document.getElementById('toggle-tram-network');
 const toggleSuburbanNetwork = document.getElementById('toggle-suburban-network');
+const toggleOtherCities = document.getElementById('toggle-other-cities');
 const tabArrivals = document.getElementById("tab-arrivals");
 const tabLines = document.getElementById("tab-lines");
 const arrivalsContent = document.getElementById("stop-info-arrivals");
@@ -86,6 +87,17 @@ const trainTimetableDate = document.getElementById('train-timetable-date');
 const trainTimetableSearch = document.getElementById('train-timetable-search');
 const trainTimetableChips = document.getElementById('train-timetable-chips');
 const trainTimetableList = document.getElementById('train-timetable-list');
+const cityStopPanel = document.getElementById('city-stop-panel');
+const cityStopTitle = document.getElementById('city-stop-title');
+const cityStopClose = document.getElementById('city-stop-close');
+const cityStopRefresh = document.getElementById('city-stop-refresh');
+const cityStopAutoRefreshContainer = document.getElementById('city-stop-auto-refresh-container');
+const cityStopTimerProgress = document.getElementById('city-stop-timer-progress');
+const cityStopTimerText = document.getElementById('city-stop-timer-text');
+const cityTabArrivals = document.getElementById('city-tab-arrivals');
+const cityTabLines = document.getElementById('city-tab-lines');
+const cityStopArrivals = document.getElementById('city-stop-arrivals');
+const cityStopLinesContent = document.getElementById('city-stop-lines-content');
 
 if (plotNotification) {
     plotNotification.style.touchAction = "none";

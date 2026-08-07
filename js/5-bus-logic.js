@@ -619,10 +619,13 @@ async function showStopInfo(stopProperties) {
   clearDemotedPanels();
   stopSuburbanTimer();
   stopFerryCountdownTicker();
+  if (typeof stopCityLiveTimer === 'function') stopCityLiveTimer();
+  if (typeof clearCitySelectedStopMarker === 'function') clearCitySelectedStopMarker();
   metroStationPanel.classList.remove("visible");
   suburbanStationPanel.classList.remove("visible");
   tramStationPanel.classList.remove("visible");
   ferryStationPanel.classList.remove("visible");
+  cityStopPanel.classList.remove("visible");
   schedulePanel.classList.remove("visible");
   stopTimer();
   switchToTab("arrivals");

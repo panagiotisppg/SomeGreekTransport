@@ -112,6 +112,8 @@ html, body {
     margin: 0;
     position: relative;
     overflow: hidden;
+    /* no bg before this - a gap anywhere fell through to plain white */
+    background: var(--loader-bg);
     overscroll-behavior: none;
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -446,6 +448,7 @@ input[type="text"] {
 #suburban-station-panel,
 #tram-station-panel,
 #ferry-station-panel,
+#city-stop-panel,
 #live-train-panel,
 #train-timetable-panel {
     background: var(--surface);
@@ -539,7 +542,7 @@ input[type="text"] {
 
 #stop-info-close:hover { color: var(--text-1); }
 
-#stop-info-refresh, #suburban-station-refresh {
+#stop-info-refresh, #suburban-station-refresh, #city-stop-refresh {
     background: none;
     border: none;
     padding: 5px;
@@ -553,11 +556,12 @@ input[type="text"] {
 }
 
 #stop-info-refresh:hover,
-#suburban-station-refresh:hover {
+#suburban-station-refresh:hover,
+#city-stop-refresh:hover {
     background: var(--surface-hover);
 }
 
-#stop-info-refresh svg, #suburban-station-refresh svg {
+#stop-info-refresh svg, #suburban-station-refresh svg, #city-stop-refresh svg {
     width: 16px;
     height: 16px;
     fill: var(--text-3);
@@ -565,7 +569,8 @@ input[type="text"] {
 }
 
 #stop-info-refresh:hover svg,
-#suburban-station-refresh:hover svg {
+#suburban-station-refresh:hover svg,
+#city-stop-refresh:hover svg {
     fill: var(--text-1);
     transform: rotate(-180deg);
 }
@@ -651,6 +656,7 @@ input[type="text"] {
 }
 
 .arrival-lineid {
+    position: relative;
     background-color: var(--accent);
     color: white;
     border-radius: var(--r-sm);
@@ -666,6 +672,32 @@ input[type="text"] {
 }
 
 .lineid-text { font-weight: 700; font-size: 14px; }
+
+/* live vs scheduled city arrivals - pulsing green for a tracked vehicle, gray for a schedule-only time */
+.arrival-status-dot {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    border: 1.5px solid var(--surface-row);
+}
+
+.arrival-status-dot.live {
+    background: #2ecc71;
+    animation: city-live-pulse 1.6s infinite;
+}
+
+.arrival-status-dot.scheduled {
+    background: var(--text-3);
+}
+
+@keyframes city-live-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.55); }
+    70%  { box-shadow: 0 0 0 6px rgba(46, 204, 113, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+}
 
 .veh-code-text {
     font-size: 9px;
@@ -750,7 +782,7 @@ input[type="text"] {
 }
 
 /* auto refresh timer */
-#auto-refresh-container, #suburban-refresh-container {
+#auto-refresh-container, #suburban-refresh-container, #city-stop-auto-refresh-container {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -759,7 +791,7 @@ input[type="text"] {
     flex-shrink: 0;
 }
 
-#auto-refresh-container.visible, #suburban-refresh-container.visible { opacity: 1; }
+#auto-refresh-container.visible, #suburban-refresh-container.visible, #city-stop-auto-refresh-container.visible { opacity: 1; }
 
 .auto-refresh-text {
     font-size: 11px;
@@ -980,6 +1012,83 @@ input[type="text"] {
 }
 
 .plot-route-button:hover { background-color: var(--success-2); }
+
+/* ─── other-city bus stop panel (reuses #stop-info-panel's header/tab rules above) ─── */
+#city-stop-panel {
+    top: 68px;
+    right: 12px;
+    width: 380px;
+    max-width: calc(85% - 24px);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(calc(100% + 14px));
+    opacity: 0;
+    pointer-events: none;
+}
+
+#city-stop-panel.visible {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#city-stop-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--sep);
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+}
+
+#city-stop-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-1);
+    margin: 0;
+    margin-right: auto;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+#city-stop-close {
+    font-size: 20px;
+    color: var(--text-3);
+    cursor: pointer;
+    line-height: 1;
+    transition: color 0.2s;
+    padding: 2px;
+}
+
+#city-stop-close:hover { color: var(--text-1); }
+
+#city-tab-switcher {
+    display: flex;
+    background: var(--surface-row);
+    border-radius: var(--r-sm);
+    padding: 3px;
+    gap: 2px;
+    margin-bottom: 12px;
+}
+
+#city-panel-content-wrapper {
+    position: relative;
+    min-height: 150px;
+}
+
+#city-stop-arrivals, #city-stop-lines-content {
+    max-height: 300px;
+    overflow-y: auto;
+    gap: 6px;
+}
+
+#city-stop-lines-content {
+    border-radius: var(--r-sm);
+    padding: 4px 0;
+}
 
 /* ─── metro station panel ─────────────────────────────────────────────────── */
 #metro-station-panel {
@@ -1723,7 +1832,25 @@ input[type="text"] {
     color: var(--text-1);
 }
 
-.tram-station-icon, .ferry-station-icon { cursor: pointer; }
+.tram-station-icon, .ferry-station-icon, .city-stop-icon { cursor: pointer; }
+
+/* ─── other-city pill markers ─────────────────────────────────────────────── */
+/* font-size/padding set inline by updateCityPillSizes, scales with zoom */
+.city-pill {
+    background: var(--accent);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    padding: 3px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+    cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    opacity: 1;
+    transition: opacity 0.35s ease, font-size 0.2s ease, padding 0.2s ease;
+}
 
 /* ─── ferry gate panel ────────────────────────────────────────────────────── */
 #ferry-station-panel {
@@ -3262,6 +3389,7 @@ html.theme-transition *::after {
     #suburban-station-panel,
     #tram-station-panel,
     #ferry-station-panel,
+    #city-stop-panel,
     #live-train-panel {
         top: auto;
         bottom: 0;
@@ -3296,6 +3424,7 @@ html.theme-transition *::after {
     #suburban-station-panel.visible,
     #tram-station-panel.visible,
     #ferry-station-panel.visible,
+    #city-stop-panel.visible,
     #live-train-panel.visible {
         transform: translateY(0);
         visibility: visible;
@@ -3308,6 +3437,7 @@ html.theme-transition *::after {
     #suburban-station-content { max-height: 32svh; }
     #live-train-panel { max-height: 45svh; }
     #ferry-station-panel { max-height: 50svh; }
+    #city-stop-panel  { max-height: 50svh; }
 
     .ferry-row-ship { font-size: 11px; }
     .ferry-pill-datetime, .ferry-pill-duration { font-size: 8px; padding: 3px 7px; }
@@ -3315,6 +3445,9 @@ html.theme-transition *::after {
 
     #stop-info-header  { padding-bottom: 8px; margin-bottom: 10px; gap: 6px; }
     #stop-info-title   { font-size: 14px; }
+
+    #city-stop-header  { padding-bottom: 8px; margin-bottom: 10px; gap: 6px; }
+    #city-stop-title   { font-size: 14px; }
 
     #tab-switcher { margin-bottom: 10px; }
     .tab-button   { padding: 6px; font-size: 13px; }

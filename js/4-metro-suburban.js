@@ -99,6 +99,9 @@ function showMetroInfo(properties) {
   stopTimer();
   stopSuburbanTimer();
   stopFerryCountdownTicker();
+  if (typeof stopCityLiveTimer === 'function') stopCityLiveTimer();
+  if (typeof clearCitySelectedStopMarker === 'function') clearCitySelectedStopMarker();
+  cityStopPanel.classList.remove("visible");
   if (selectedStopMarker) {
     selectedStopMarker.remove();
     selectedStopMarker = null;
@@ -680,10 +683,13 @@ function showSuburbanInfo(properties) {
   clearDemotedPanels();
   stopTimer();
   stopFerryCountdownTicker();
+  if (typeof stopCityLiveTimer === 'function') stopCityLiveTimer();
+  if (typeof clearCitySelectedStopMarker === 'function') clearCitySelectedStopMarker();
   stopInfoPanel.classList.remove("visible");
   metroStationPanel.classList.remove("visible");
   tramStationPanel.classList.remove("visible");
   ferryStationPanel.classList.remove("visible");
+  cityStopPanel.classList.remove("visible");
   schedulePanel.classList.remove("visible");
   if (selectedStopMarker) {
     selectedStopMarker.remove();
@@ -777,10 +783,13 @@ function showTramInfo(properties) {
   stopTimer();
   stopSuburbanTimer();
   stopFerryCountdownTicker();
+  if (typeof stopCityLiveTimer === 'function') stopCityLiveTimer();
+  if (typeof clearCitySelectedStopMarker === 'function') clearCitySelectedStopMarker();
   stopInfoPanel.classList.remove("visible");
   metroStationPanel.classList.remove("visible");
   suburbanStationPanel.classList.remove("visible");
   ferryStationPanel.classList.remove("visible");
+  cityStopPanel.classList.remove("visible");
   schedulePanel.classList.remove("visible");
   
   if (selectedStopMarker) {
@@ -966,10 +975,13 @@ async function showFerryInfo(gate) {
   stopTimer();
   stopSuburbanTimer();
   stopFerryCountdownTicker();
+  if (typeof stopCityLiveTimer === 'function') stopCityLiveTimer();
+  if (typeof clearCitySelectedStopMarker === 'function') clearCitySelectedStopMarker();
   stopInfoPanel.classList.remove("visible");
   metroStationPanel.classList.remove("visible");
   suburbanStationPanel.classList.remove("visible");
   tramStationPanel.classList.remove("visible");
+  cityStopPanel.classList.remove("visible");
   schedulePanel.classList.remove("visible");
 
   if (selectedStopMarker) {
@@ -1455,7 +1467,7 @@ function renderLiveTrainRow(pos) {
 // pan for in the first place
 let currentLiveTrainSheetId = null;
 
-const LIVE_TRAIN_DEMOTABLE_PANELS = [stopInfoPanel, suburbanStationPanel, tramStationPanel, metroStationPanel, schedulePanel];
+const LIVE_TRAIN_DEMOTABLE_PANELS = [stopInfoPanel, suburbanStationPanel, tramStationPanel, metroStationPanel, cityStopPanel, schedulePanel];
 
 function demotePanelsBehindLiveTrainSheet() {
   LIVE_TRAIN_DEMOTABLE_PANELS.forEach(panel => {

@@ -67,6 +67,7 @@ function clearDemotedPanels() {
   suburbanStationPanel.classList.remove('panel-demoted');
   tramStationPanel.classList.remove('panel-demoted');
   metroStationPanel.classList.remove('panel-demoted');
+  cityStopPanel.classList.remove('panel-demoted');
   schedulePanel.classList.remove('panel-demoted');
   if (typeof closeLiveTrainSheet === 'function') closeLiveTrainSheet();
 }
@@ -77,7 +78,9 @@ function closeAllInfoPanels() {
   stopTimer();
   stopSuburbanTimer();
   if (typeof stopFerryCountdownTicker === 'function') stopFerryCountdownTicker();
-  [stopInfoPanel, metroStationPanel, suburbanStationPanel, tramStationPanel, ferryStationPanel, schedulePanel].forEach((panel) => {
+  if (typeof stopCityLiveTimer === 'function') stopCityLiveTimer();
+  if (typeof clearCitySelectedStopMarker === 'function') clearCitySelectedStopMarker();
+  [stopInfoPanel, metroStationPanel, suburbanStationPanel, tramStationPanel, ferryStationPanel, cityStopPanel, schedulePanel].forEach((panel) => {
     if (panel) panel.classList.remove('visible');
   });
   clearDemotedPanels();
@@ -242,6 +245,9 @@ if (timerProgress) {
 }
 if (suburbanTimerProgress) {
     suburbanTimerProgress.style.strokeDasharray = `${circumference} ${circumference}`;
+}
+if (cityStopTimerProgress) {
+    cityStopTimerProgress.style.strokeDasharray = `${circumference} ${circumference}`;
 }
 // initialize the drag listener immediately
 initNotificationGestures();

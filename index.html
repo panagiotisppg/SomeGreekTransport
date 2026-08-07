@@ -84,7 +84,7 @@
     <!-- maplibre gl js library -->
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
     <!-- custom css -->
-    <link rel="stylesheet" href="styles.css?v=13" />
+    <link rel="stylesheet" href="styles.css?v=27" />
     <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
 </head>
 
@@ -147,6 +147,40 @@
         <div id="panel-content-wrapper">
             <div id="stop-info-arrivals" class="panel-content active"></div>
             <div id="stop-info-lines-content" class="panel-content"></div>
+        </div>
+    </div>
+
+    <!-- other-city bus stop info panel -->
+    <div id="city-stop-panel">
+        <div id="city-stop-header">
+            <button id="city-stop-refresh" title="Refresh Arrivals">
+                <svg viewBox="0 0 24 24">
+                    <path d="M17.65,6.35C16.2,4.9,14.21,4,12,4A8,8,0,0,0,4,12A8,8,0,0,0,12,20C15.73,20,18.84,17.45,19.73,14H17.65C16.83,16.33,14.61,18,12,18A6,6,0,0,1,6,12A6,6,0,0,1,12,6C13.66,6,15.14,6.69,16.22,7.78L13,11H20V4L17.65,6.35Z"></path>
+                </svg>
+            </button>
+            <h3 id="city-stop-title"></h3>
+            <div id="city-stop-auto-refresh-container">
+                <span class="auto-refresh-text">Auto Refresh in:</span>
+                <div class="timer-wrapper">
+                    <svg class="timer-svg" viewBox="0 0 36 36">
+                        <path class="timer-track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                        <path id="city-stop-timer-progress" class="timer-progress" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path>
+                    </svg>
+                    <div id="city-stop-timer-text" class="timer-text">30</div>
+                </div>
+            </div>
+            <span id="city-stop-close">×</span>
+        </div>
+
+        <div id="city-tab-switcher">
+            <button id="city-tab-arrivals" class="tab-button active">Arrivals</button>
+            <button id="city-tab-lines" class="tab-button">Lines</button>
+        </div>
+        <hr class="info-separator">
+
+        <div id="city-panel-content-wrapper">
+            <div id="city-stop-arrivals" class="panel-content active"></div>
+            <div id="city-stop-lines-content" class="panel-content"></div>
         </div>
     </div>
 
@@ -428,6 +462,13 @@
                 <span class="slider round"></span>
             </label>
         </div>
+        <div class="layer-toggle-row">
+            <span>Other Cities</span>
+            <label class="toggle-control">
+                <input type="checkbox" id="toggle-other-cities" checked>
+                <span class="slider round"></span>
+            </label>
+        </div>
     </div>
 
     <!-- delete confirmation popup -->
@@ -468,14 +509,15 @@
 
     <!-- custom javascript files split into logical modules -->
     <div id="delay-tooltip"></div>
-    <script src="js/1-globals.js?v=13"></script>
-    <script src="js/2-utils.js?v=13"></script>
-    <script src="js/3-map-engine.js?v=13"></script>
-    <script src="js/4-metro-suburban.js?v=13"></script>
-    <script src="js/5-bus-logic.js?v=13"></script>
-    <script src="js/6-search-schedule.js?v=13"></script>
-    <script src="js/7-main.js?v=13"></script>
-    <script src="js/8-train-timetable.js?v=13"></script>
+    <script src="js/1-globals.js?v=27"></script>
+    <script src="js/2-utils.js?v=27"></script>
+    <script src="js/3-map-engine.js?v=27"></script>
+    <script src="js/4-metro-suburban.js?v=27"></script>
+    <script src="js/5-bus-logic.js?v=27"></script>
+    <script src="js/6-search-schedule.js?v=27"></script>
+    <script src="js/7-main.js?v=27"></script>
+    <script src="js/8-train-timetable.js?v=27"></script>
+    <script src="js/9-cities.js?v=27"></script>
 
     <script>
       document.getElementById('theme-toggle').addEventListener('click', function() {
