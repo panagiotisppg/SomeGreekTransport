@@ -51,6 +51,7 @@ function manageOpenPanels(panelToKeep) {
     { element: searchResultsContainer, name: 'search' },
     { element: deletePopup, name: 'delete' },
     { element: layerControlPanel, name: 'layers' },
+    { element: dataUsagePanel, name: 'datausage' },
     { element: timerOptionsPopup, name: 'timer' }
   ];
   panels.forEach(panel => {

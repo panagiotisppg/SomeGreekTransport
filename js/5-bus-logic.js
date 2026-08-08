@@ -267,6 +267,10 @@ function rebuildPlottedRouteLayers() {
 
 // route plotting
 async function plotAnimatedRoute(routeCode, lineID, routeDescr) {
+  if (!dataFeaturesEnabled.buses) {
+    showPlotNotification(dataOffMessage('Bus data'), 'notif-cyan');
+    return;
+  }
   if (plottedRoutes.find((r) => r.routeCode === routeCode)) return;
   if (plottedRoutes.length >= 2) return;
   let color;
@@ -688,6 +692,13 @@ async function showStopInfo(stopProperties) {
       }
   }
 
+  if (!dataFeaturesEnabled.buses) {
+    showFinalError(linesContent, dataOffMessage('Bus data'));
+    showNoArrivalsUI(arrivalsContent, dataOffMessage('Bus data'));
+    markDataNeeded('buses');
+    return;
+  }
+
   const stopCode = stopProperties.StopCode;
   const routesUrl = `${PROXY_URL}${encodeURIComponent(`https://telematics.oasa.gr/api/?act=webRoutesForStop&p1=${stopCode}&t=${Date.now()}`)}`;
   const arrivalsUrl = `${PROXY_URL}${encodeURIComponent(`https://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}&t=${Date.now()}`)}`;
@@ -724,6 +735,11 @@ async function showStopInfo(stopProperties) {
 }
 
 async function fetchAndDisplayArrivals(arrivalsUrl) {
+  if (!dataFeaturesEnabled.buses) {
+    showNoArrivalsUI(arrivalsContent, dataOffMessage('Bus data'));
+    markDataNeeded('buses');
+    return;
+  }
   if (!arrivalsContent.querySelector('.loader-container')) {
     showLoadingUI(arrivalsContent, "Getting Live Arrivals...", true);
   }
@@ -827,6 +843,7 @@ stopInfoClose.addEventListener("click", () => {
   stopInfoPanel.classList.remove("visible");
   currentStopProperties = null;
   stopTimer();
+  clearDataNeeded('buses');
   if (selectedStopMarker) {
     selectedStopMarker.remove();
     selectedStopMarker = null;

@@ -498,6 +498,17 @@ layerControlBtn.addEventListener("click", (e) => {
   layerControlPanel.classList.toggle("visible");
 });
 
+dataUsageButton.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!dataUsagePanel.classList.contains("visible")) {
+    manageOpenPanels("datausage");
+    const btnRect = dataUsageButton.getBoundingClientRect();
+    dataUsagePanel.style.top = `${btnRect.top}px`;
+    dataUsagePanel.style.left = `${btnRect.right + 10}px`;
+  }
+  dataUsagePanel.classList.toggle("visible");
+});
+
 toggleBusStops.addEventListener("change", () => {
   updateAllLayers();
   updatePlottedStopLabels();
@@ -536,6 +547,7 @@ const openMapPopups = new Set();
 map.on("click", (e) => {
   if (deletePopup.classList.contains("visible")) deletePopup.classList.remove("visible");
   if (layerControlPanel.classList.contains("visible")) layerControlPanel.classList.remove("visible");
+  if (dataUsagePanel.classList.contains("visible")) dataUsagePanel.classList.remove("visible");
   if (timerOptionsPopup && timerOptionsPopup.classList.contains("visible")) timerOptionsPopup.classList.remove("visible");
   if (!searchContainer.contains(e.originalEvent.target)) searchResultsContainer.classList.remove("visible");
 });

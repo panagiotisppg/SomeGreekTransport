@@ -620,6 +620,13 @@ async function fetchAndRenderSuburbanArrivals(properties, isInitialLoad) {
   const contentArea = document.getElementById('suburban-station-content');
   const govIds = properties.govIds || [];
 
+  if (!dataFeaturesEnabled.trains) {
+    currentSuburbanTrainEvents = [];
+    showFinalError(contentArea, dataOffMessage('Trains'));
+    markDataNeeded('trains');
+    return;
+  }
+
   if (govIds.length === 0) {
     currentSuburbanTrainEvents = [];
     showFinalError(contentArea, 'No live data available for this station.');
@@ -971,6 +978,7 @@ function stopFerryCountdownTicker() {
 }
 
 async function showFerryInfo(gate) {
+  currentFerryGate = gate;
   clearDemotedPanels();
   stopTimer();
   stopSuburbanTimer();
@@ -997,6 +1005,14 @@ async function showFerryInfo(gate) {
   ferryStationTitle.innerHTML = `<div class="metro-panel-icon">${iconHtml}</div><span>Gate ${gate}</span><div class="ferry-title-ship-icon">${createShipGlyph()}</div>`;
   ferryStationPanel.classList.add("visible");
   ferryStationUpdated.textContent = '';
+
+  if (!dataFeaturesEnabled.ports) {
+    showFinalError(ferryArrivalsList, dataOffMessage('Piraeus ports'));
+    showFinalError(ferryDeparturesList, dataOffMessage('Piraeus ports'));
+    markDataNeeded('ports');
+    return;
+  }
+
   showLoadingUI(ferryArrivalsList, "Loading arrivals...");
   showLoadingUI(ferryDeparturesList, "Loading departures...");
 
@@ -1018,11 +1034,14 @@ async function showFerryInfo(gate) {
 ferryStationClose.addEventListener('click', () => {
   ferryStationPanel.classList.remove('visible');
   stopFerryCountdownTicker();
+  currentFerryGate = null;
+  clearDataNeeded('ports');
 });
 
 suburbanStationClose.addEventListener('click', () => {
   suburbanStationPanel.classList.remove('visible');
   stopSuburbanTimer();
+  clearDataNeeded('trains');
 });
 
 suburbanStationRefresh.addEventListener('click', () => {
@@ -1692,11 +1711,15 @@ function animateTrainMarker(marker, from, to, duration = 900) {
 // the animation duration just tracks the real gap since the last message
 // so markers glide smoothly no matter how often the server actually sends
 let lastTrainUpdateTime = null;
+let trainPositionEventSource = null;
 
 function startTrainPositionStream() {
+  if (trainPositionEventSource || !dataFeaturesEnabled.trains) return;
   const source = new EventSource(TRAIN_STREAM_URL);
+  trainPositionEventSource = source;
   source.addEventListener('trainPositionsUx', (e) => {
     try {
+      addDataUsage('trains', new Blob([e.data]).size);
       const data = JSON.parse(e.data);
       if (!data || !Array.isArray(data.positions)) return;
       const now = performance.now();
@@ -1710,6 +1733,29 @@ function startTrainPositionStream() {
   source.onerror = (err) => {
     console.error('Train position stream error (EventSource will auto-reconnect):', err);
   };
+}
+
+function stopTrainPositionStream() {
+  if (trainPositionEventSource) {
+    trainPositionEventSource.close();
+    trainPositionEventSource = null;
+  }
+}
+
+// keeps the track/station layers, just drops the live train dots - used when
+// trains data gets switched off (js/10-data-usage.js)
+function clearAllLiveTrainMarkers() {
+  liveTrainMarkers.forEach((marker) => {
+    if (marker._animationId) cancelAnimationFrame(marker._animationId);
+    if (marker._hoverPopup) marker._hoverPopup.remove();
+    marker.remove();
+  });
+  liveTrainMarkers.clear();
+  liveTrainLatestPositions.clear();
+  liveTrainScheduleIdSet.clear();
+  liveTrainMarkersByScheduleId.clear();
+  liveTrainPositionsByScheduleId.clear();
+  if (typeof closeLiveTrainSheet === 'function') closeLiveTrainSheet();
 }
 
 startTrainPositionStream();

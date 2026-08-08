@@ -40,6 +40,7 @@ const ferryStationClose = document.getElementById("ferry-station-close");
 const ferryStationUpdated = document.getElementById("ferry-station-updated");
 const ferryDeparturesList = document.getElementById("ferry-departures-list");
 let ferryCountdownIntervalId = null;
+let currentFerryGate = null;
 const ferryArrivalsList = document.getElementById("ferry-arrivals-list");
 const liveTrainPanel = document.getElementById("live-train-panel");
 const liveTrainContent = document.getElementById("live-train-content");
@@ -98,6 +99,32 @@ const cityTabArrivals = document.getElementById('city-tab-arrivals');
 const cityTabLines = document.getElementById('city-tab-lines');
 const cityStopArrivals = document.getElementById('city-stop-arrivals');
 const cityStopLinesContent = document.getElementById('city-stop-lines-content');
+
+const dataUsageButton = document.getElementById('data-usage-button');
+const dataUsagePanel = document.getElementById('data-usage-panel');
+const dataUsageTrainsEl = document.getElementById('data-usage-trains');
+const dataUsageBusesEl = document.getElementById('data-usage-buses');
+const dataUsagePortsEl = document.getElementById('data-usage-ports');
+const dataUsageTotalEl = document.getElementById('data-usage-total');
+const toggleTrainsData = document.getElementById('toggle-trains-data');
+const toggleBusesData = document.getElementById('toggle-buses-data');
+const togglePortsData = document.getElementById('toggle-ports-data');
+const dataUsageRowTrains = document.getElementById('data-usage-row-trains');
+const dataUsageRowBuses = document.getElementById('data-usage-row-buses');
+const dataUsageRowPorts = document.getElementById('data-usage-row-ports');
+// running byte totals per category and their on/off state - read by the fetch
+// wrapper and every live-data panel (js/10-data-usage.js owns the ui/wiring)
+const dataUsageBytes = { trains: 0, buses: 0, ports: 0 };
+const dataFeaturesEnabled = { trains: true, buses: true, ports: true };
+// true while some currently-open sheet is showing the "turn this on" message
+// for that category - drives the breathing highlight, cleared when that
+// sheet closes or the category gets switched back on
+const dataUsageNeeded = { trains: false, buses: false, ports: false };
+// shared message shown wherever a panel would normally fetch live data for
+// a category thats currently switched off
+function dataOffMessage(label) {
+  return `Turn on "<span class="breathing-underline">${label}</span>" in the data usage panel to see this.`;
+}
 
 if (plotNotification) {
     plotNotification.style.touchAction = "none";

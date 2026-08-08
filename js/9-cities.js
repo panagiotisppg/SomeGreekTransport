@@ -490,6 +490,12 @@ function clearCityLiveMarkers(entry) {
   entry.liveVehicleMarkers.clear();
 }
 
+// used when bus data gets switched off (js/10-data-usage.js) - every citys
+// live vehicles, not just whichever stop happens to be open right now
+function clearAllCityLiveMarkers() {
+  CITY_REGISTRY.forEach((entry) => clearCityLiveMarkers(entry));
+}
+
 // no shared id between a live vehicle and a scheduled trip - walk the
 // schedule in order, claim the earliest live gps-fixed bus still free per line
 function mergeCityArrivals(vehicles, scheduledTrips) {
@@ -609,6 +615,11 @@ function renderCityArrivals(entry, stop, vehicles, scheduledTrips) {
 
 async function refreshCityLiveArrivals() {
   if (!activeCityEntry || !activeCityStop) return;
+  if (!dataFeaturesEnabled.buses) {
+    showNoArrivalsUI(cityStopArrivals, dataOffMessage('Bus data'));
+    markDataNeeded('buses');
+    return;
+  }
   try {
     // sporades bundles live+scheduled in one call - fetch it once instead of
     // hitting fetchCityLiveVehicles/fetchCityScheduledUpcoming separately
@@ -705,6 +716,12 @@ async function showCityStopInfo(entry, stop) {
 
   highlightRoutesForStop(entry, stop);
 
+  if (!dataFeaturesEnabled.buses) {
+    showNoArrivalsUI(cityStopArrivals, dataOffMessage('Bus data'));
+    markDataNeeded('buses');
+    return;
+  }
+
   showLoadingUI(cityStopArrivals, 'Getting Live Arrivals...', true);
   await refreshCityLiveArrivals();
   startCityLiveTimer();
@@ -720,6 +737,7 @@ cityStopClose.addEventListener('click', () => {
   clearCitySelectedStopMarker();
   activeCityEntry = null;
   activeCityStop = null;
+  clearDataNeeded('buses');
 });
 
 cityStopRefresh.addEventListener('click', () => {
@@ -776,6 +794,13 @@ async function showCitySchedule(entry, line) {
   scheduleRoutesList.innerHTML = '';
   goTimesSection.style.display = 'block';
   comeTimesSection.style.display = 'none';
+
+  if (!dataFeaturesEnabled.buses) {
+    scheduleLoadingOverlay.classList.remove('visible');
+    scheduleGoTimes.innerHTML = `<div class="info-message">${dataOffMessage('Bus data')}</div>`;
+    markDataNeeded('buses');
+    return;
+  }
 
   const day = (new Date().getDay() + 6) % 7;
   try {

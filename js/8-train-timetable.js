@@ -94,6 +94,12 @@ async function openTrainTimetable() {
     weekday: 'short', day: '2-digit', month: 'short', timeZone: 'Europe/Athens',
   });
 
+  if (!dataFeaturesEnabled.trains) {
+    showFinalError(trainTimetableList, dataOffMessage('Trains'));
+    markDataNeeded('trains');
+    return;
+  }
+
   if (!timetableHasLoadedOnce) {
     showLoadingUI(trainTimetableList, 'Loading timetable...');
     try {
@@ -125,6 +131,7 @@ async function openTrainTimetable() {
 function closeTrainTimetable() {
   trainTimetablePanel.classList.remove('visible');
   stopTimetableTelemetryStream();
+  clearDataNeeded('trains');
 }
 
 function startTimetableTelemetryStream() {
@@ -132,6 +139,7 @@ function startTimetableTelemetryStream() {
   timetableEventSource = new EventSource(TIMETABLE_TELEMETRY_URL);
   timetableEventSource.addEventListener('scheduleTelemetry', (e) => {
     try {
+      addDataUsage('trains', new Blob([e.data]).size);
       const payload = JSON.parse(e.data);
       (payload.telemetry || []).forEach((t) => {
         if (!t.scheduleId) return;
