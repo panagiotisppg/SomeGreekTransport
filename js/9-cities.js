@@ -28,7 +28,10 @@ const CITY_REGISTRY = [
   { id: 'agrinio', name: 'Agrinio', lat: 38.5991, lng: 21.4254, source: 'citybus', cityId: 130 },
   { id: 'chalkida', name: 'Chalkida', lat: 38.4542, lng: 23.6260, source: 'citybus', cityId: 133 },
   { id: 'drama', name: 'Drama', lat: 41.1440, lng: 24.1436, source: 'citybus', cityId: 134 },
-  { id: 'skiathos', name: 'Skiathos', lat: 39.1356, lng: 23.5777, source: 'citybus', cityId: 135 },
+  // skiathos stops have real live/schedule data on citybus.gr, skopelos
+  // stops dont (never onboarded there) - no fallback for those, nothing to fall back to
+  { id: 'sporades', name: 'Sporades', lat: 39.1356, lng: 23.5777, source: 'citybus', cityId: 135 },
+  { id: 'aigio', name: 'Aigio', lat: 38.2469, lng: 22.0841, source: 'citybus', cityId: 'aigio', liveSubdomain: 'aigio' },
 ];
 
 // a bit further out than expected so theres room to zoom back out and
@@ -407,7 +410,29 @@ function parseVehicleCoord(lat, lng) {
   return { lat: flat, lng: flng };
 }
 
+// /api/eta/{code} on these liveSubdomain-backed cities returns live+scheduled
+// trips together, tagged by lat/lng presence just like citybus - split it the
+// same way so it can flow through the same mergeCityArrivals path as every city
+async function fetchLiveSubdomainEta(entry, stop) {
+  const url = `${PROXY_URL}${encodeURIComponent(`${CITY_MYBUS_BASE(entry.liveSubdomain)}/api/eta/${stop.code}`)}`;
+  const res = await fetch(url);
+  if (!res.ok) return { vehicles: [], trips: [] };
+  const data = await res.json();
+  const vehicles = [];
+  const trips = [];
+  (data.vehicles || []).forEach((v) => {
+    const { lat, lng } = parseVehicleCoord(v.latitude, v.longitude);
+    if (lat != null && lng != null) {
+      vehicles.push({ lineCode: v.lineCode, vehicleCode: v.vehicleCode, routeName: v.routeName || '', lat, lng, etaMinutes: v.departureMins, etaText: `${v.departureMins}'` });
+    } else {
+      trips.push({ lineCode: v.lineCode, routeName: v.routeName || '', lineColor: v.lineColor, minutesFromNow: v.departureMins });
+    }
+  });
+  return { vehicles, trips };
+}
+
 async function fetchCityLiveVehicles(entry, stop) {
+  if (entry.liveSubdomain) return (await fetchLiveSubdomainEta(entry, stop)).vehicles;
   if (entry.source === 'citybus') {
     const url = `${PROXY_URL}${encodeURIComponent(`${CITY_REST_BASE}/api/v1/el/${entry.cityId}/stops/live/${stop.code}`)}`;
     const res = await fetch(url);
@@ -585,10 +610,14 @@ function renderCityArrivals(entry, stop, vehicles, scheduledTrips) {
 async function refreshCityLiveArrivals() {
   if (!activeCityEntry || !activeCityStop) return;
   try {
-    const [vehicles, scheduled] = await Promise.all([
-      fetchCityLiveVehicles(activeCityEntry, activeCityStop),
-      fetchCityScheduledUpcoming(activeCityEntry, activeCityStop),
-    ]);
+    // sporades bundles live+scheduled in one call - fetch it once instead of
+    // hitting fetchCityLiveVehicles/fetchCityScheduledUpcoming separately
+    const [vehicles, scheduled] = activeCityEntry.liveSubdomain
+      ? await fetchLiveSubdomainEta(activeCityEntry, activeCityStop).then((r) => [r.vehicles, r.trips])
+      : await Promise.all([
+          fetchCityLiveVehicles(activeCityEntry, activeCityStop),
+          fetchCityScheduledUpcoming(activeCityEntry, activeCityStop),
+        ]);
     if (activeCityEntry && activeCityStop) renderCityArrivals(activeCityEntry, activeCityStop, vehicles, scheduled);
   } catch (err) {
     console.error('Failed to load city live vehicles:', err);
@@ -751,7 +780,20 @@ async function showCitySchedule(entry, line) {
   const day = (new Date().getDay() + 6) % 7;
   try {
     let trips;
-    if (entry.source === 'citybus') {
+    if (entry.liveSubdomain) {
+      // schedule here is keyed by routeCode (not lineCode) - fetch every route
+      // code serving this stop, then keep just this lines departures here.
+      // works even without a local routes.json (eg aigio has none)
+      const stopRouteCodes = activeCityStop.raw.routeCodes || [];
+      const results = await Promise.all(stopRouteCodes.map(async (rc) => {
+        const url = `${PROXY_URL}${encodeURIComponent(`${CITY_MYBUS_BASE(entry.liveSubdomain)}/api/schedule/${rc}?day=${day}`)}`;
+        const res = await fetch(url);
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.schedules || [];
+      }));
+      trips = results.flat().filter((t) => t.stopCode === activeCityStop.code && t.lineCode === line.code);
+    } else if (entry.source === 'citybus') {
       const url = `${PROXY_URL}${encodeURIComponent(`${CITY_REST_BASE}/api/v1/el/${entry.cityId}/trips/stop/${activeCityStop.code}/day/${day}`)}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error(`schedule fetch failed: ${res.status}`);

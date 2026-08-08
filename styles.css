@@ -2955,6 +2955,12 @@ input:checked + .slider:before { transform: translateX(20px); }
     flex-shrink: 0;
 }
 
+.arrival-scheduled-label {
+    font-size: 10px;
+    color: var(--text-3);
+    white-space: nowrap;
+}
+
 .arrival-time-container {
     position: relative;
     width: 28px;
@@ -3021,7 +3027,9 @@ input:checked + .slider:before { transform: translateX(20px); }
 .btime-timer-svg { transform: rotate(175deg) scaleY(-1); }
 
 /* ─── bus icon map marker ────────────────────────────────────────────────── */
-.bus-text-icon { transition: opacity 2s ease; }
+/* above stop dots/selected-stop/heading arrows (all z-index:1 or less) so a
+   live bus never ends up hidden under a stop it's sitting on top of */
+.bus-text-icon { transition: opacity 2s ease; z-index: 5; }
 
 .bus-icon-body {
     position: relative;

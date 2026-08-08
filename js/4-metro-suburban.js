@@ -1614,7 +1614,7 @@ liveTrainContent.addEventListener('click', async (e) => {
 
 liveTrainClose.addEventListener('click', closeLiveTrainSheet);
 
-function updateLiveTrainPositions(positions) {
+function updateLiveTrainPositions(positions, animDuration) {
   const seenIds = new Set();
   liveTrainScheduleIdSet.clear();
   liveTrainMarkersByScheduleId.clear();
@@ -1631,7 +1631,8 @@ function updateLiveTrainPositions(positions) {
     let marker;
     if (liveTrainMarkers.has(id)) {
       marker = liveTrainMarkers.get(id);
-      marker.setLngLat(lngLat);
+      const from = marker.getLngLat();
+      animateTrainMarker(marker, { lat: from.lat, lng: from.lng }, pos, animDuration);
       marker.getElement().innerHTML = createLiveTrainIconSvg(heading, color, id === currentLiveTrainSheetId);
       // schedule fetch is async so the origin/destination may only become
       // known a tick or two after the marker itself was first drawn
@@ -1667,14 +1668,41 @@ function updateLiveTrainPositions(positions) {
   });
 }
 
+// moves a train marker to its new spot over time instead of snapping there
+function animateTrainMarker(marker, from, to, duration = 900) {
+  if (marker._animationId) cancelAnimationFrame(marker._animationId);
+  let startTime = null;
+  function step(timestamp) {
+    if (!startTime) startTime = timestamp;
+    const progress = (timestamp - startTime) / duration;
+    if (progress > 1) {
+      marker.setLngLat([to.lng, to.lat]);
+      marker._animationId = null;
+      return;
+    }
+    const lat = from.lat + (to.lat - from.lat) * progress;
+    const lng = from.lng + (to.lng - from.lng) * progress;
+    marker.setLngLat([lng, lat]);
+    marker._animationId = requestAnimationFrame(step);
+  }
+  marker._animationId = requestAnimationFrame(step);
+}
+
+// every message gets applied as it arrives, same stream/rate as always -
+// the animation duration just tracks the real gap since the last message
+// so markers glide smoothly no matter how often the server actually sends
+let lastTrainUpdateTime = null;
+
 function startTrainPositionStream() {
   const source = new EventSource(TRAIN_STREAM_URL);
   source.addEventListener('trainPositionsUx', (e) => {
     try {
       const data = JSON.parse(e.data);
-      if (data && Array.isArray(data.positions)) {
-        updateLiveTrainPositions(data.positions);
-      }
+      if (!data || !Array.isArray(data.positions)) return;
+      const now = performance.now();
+      const gap = lastTrainUpdateTime ? now - lastTrainUpdateTime : 900;
+      lastTrainUpdateTime = now;
+      updateLiveTrainPositions(data.positions, Math.min(Math.max(gap, 500), 5000));
     } catch (err) {
       console.error('Failed to parse train position update:', err);
     }
