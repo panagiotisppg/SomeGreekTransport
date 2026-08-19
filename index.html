@@ -578,6 +578,26 @@
       });
     </script>
 
+    <!-- primitive dev-only maplibre skin picker, not a real feature -->
+    <select id="skin-picker" style="position:fixed;bottom:10px;right:10px;z-index:9999;padding:4px;">
+      <option value="liberty">liberty</option>
+      <option value="bright">bright</option>
+      <option value="positron">positron</option>
+      <option value="fiord">fiord</option>
+      <option value="dark">dark</option>
+    </select>
+    <script>
+      document.getElementById('skin-picker').addEventListener('change', function(e) {
+        map.setStyle('https://tiles.openfreemap.org/styles/' + e.target.value);
+        map.once('styledata', function() {
+          if (typeof rebuildMapLayersAfterStyleChange === 'function') rebuildMapLayersAfterStyleChange();
+          if (typeof rebuildPlottedRouteLayers === 'function') rebuildPlottedRouteLayers();
+          if (typeof applyMapTheme === 'function') applyMapTheme();
+          if (typeof updateAllLayers === 'function') updateAllLayers();
+        });
+      });
+    </script>
+
 </body>
 
 </html>

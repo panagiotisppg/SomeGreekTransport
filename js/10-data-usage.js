@@ -1,7 +1,6 @@
 // ─── data usage panel + per-category kill switches ─────────────────────────
-// tracks bytes for live/on-demand traffic only (trains sse+api, oasa+citybus+
-// mybus, olp ferry schedule) - the one-time static geography bundles dont
-// count since turning a category off never stops those anyway
+// tracks live/on-demand traffic only - one-time static geography bundles
+// dont count since turning a category off never stops those anyway
 
 function formatDataSize(bytes) {
   if (bytes < 1024) return `${Math.round(bytes)} B`;

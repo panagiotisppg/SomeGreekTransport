@@ -122,10 +122,8 @@ function populateScheduleRoutes(routesArray, lineID) {
   updateArrivalsUIState();
 }
 
-// train/suburban stop names are stored transliterated to latin, and
-// disagree with toGreeklish on a couple letters (eta as "i" not "h", chi
-// as "ch" not "x") - a few hubs are translated outright (eg "Airport")
-// so those get an explicit alias instead
+// train/suburban names disagree with toGreeklish on a couple letters (eta
+// as "i" not "h") - hubs translated outright (eg "Airport") get an explicit alias
 const trainStopNameAliases = {
   'αεροδρόμιο': 'airport',
   'αθήνα': 'athens',
@@ -182,13 +180,8 @@ function handleSearch() {
       return trainStopSearchVariants(query).some((variant) => name.includes(variant));
     });
 
-    // ranks how well each stop actually matches - exact/starts-with/contains,
-    // or weakest of all a bus stop that only matched via its street rather
-    // than its own name - computed the same way for both types so neither
-    // one gets a structural edge, with the previous bug (train matches via
-    // an alias/alt-spelling never registering as a strong match, so they
-    // always lost ties) fixed by scoring every variant that could have
-    // found the item, not just the raw query
+    // ranks exact/starts-with/contains/street-only matches the same way for
+    // both types - scores every alias variant, not just the raw query, so trains dont lose ties
     const bestScore = (name, variants) => {
       let best = null;
       variants.forEach((variant) => {
@@ -262,9 +255,8 @@ function renderSearchResults(results, type) {
           showSchedulePanel(item);
         };
       } else if (item.properties.groups !== undefined) {
-        // train / suburban rail stop - same pie-chart dot as its own map
-        // marker (one sector per line group) and line pills instead of a
-        // street, since this dataset doesnt have street data
+        // train/suburban stop - same pie-chart dot as its map marker, line
+        // pills instead of a street since this dataset has no street data
         const groups = item.properties.groups || [];
         const iconHtml = createSuburbanIcon(groups).replace('<svg ', '<svg class="search-result-icon" ');
         const pillsHtml = groups
@@ -360,9 +352,8 @@ function updateButtonPosition() {
       const newTop = resultsRect.bottom + 10;
       customControlsContainer.style.top = `${newTop}px`;
     } else {
-      // on mobile the search bar spans nearly the full width, so aligning
-      // the button stack with it like on desktop would overlap it -
-      // sitting below it instead keeps them both left-aligned and clear
+      // mobile search bar spans nearly the full width - aligning the button
+      // stack like on desktop would overlap it, so it sits below instead
       const searchRect = searchContainer.getBoundingClientRect();
       customControlsContainer.style.top = `${searchRect.bottom + 10}px`;
     }

@@ -116,9 +116,8 @@ const dataUsageRowPorts = document.getElementById('data-usage-row-ports');
 // wrapper and every live-data panel (js/10-data-usage.js owns the ui/wiring)
 const dataUsageBytes = { trains: 0, buses: 0, ports: 0 };
 const dataFeaturesEnabled = { trains: true, buses: true, ports: true };
-// true while some currently-open sheet is showing the "turn this on" message
-// for that category - drives the breathing highlight, cleared when that
-// sheet closes or the category gets switched back on
+// true while an open sheet shows the "turn this on" message for that
+// category - drives the breathing highlight, cleared on close or re-enable
 const dataUsageNeeded = { trains: false, buses: false, ports: false };
 // shared message shown wherever a panel would normally fetch live data for
 // a category thats currently switched off
@@ -165,9 +164,8 @@ let mergedStopsGeoJSON = { features: [] };
 let suburbanStopsGeoJSON = { features: [] };
 let stopStreetmap = new Map();
 let userLocationMarker = null;
-// station markers stay as plain maplibregl.Marker DOM objects (bounded counts);
-// the bulk line/stop/heading layers are static GL sources+layers, referenced
-// directly by id (see LAYER_IDS/SOURCE_IDS in js/3-map-engine.js) instead of vars
+// station markers stay plain maplibregl.Marker dom objects (bounded counts);
+// bulk line/stop/heading layers are gl sources/layers, referenced by id instead
 let metroStationMarkers = [], suburbanStationMarkers = [], tramStationMarkers = [], ferryStationMarkers = [];
 let notificationTimeout = null;
 
@@ -188,7 +186,7 @@ const metroColors = {
 };
 
 const metroLineColors = {
-  1: '#00A651', 2: '#FF0000', 3: '#0072BC', 33: '#0072BC'
+  1: '#00A651', 2: '#FF0000', 3: '#146eff', 33: '#146eff'
 };
 
 const tramColors = {

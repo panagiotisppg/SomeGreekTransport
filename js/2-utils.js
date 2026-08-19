@@ -9,13 +9,8 @@ function hideLoader() {
   setTimeout(() => loadingOverlay.classList.add("hidden"), 500);
   setTimeout(() => {
     if (loadingOverlay) loadingOverlay.style.display = "none";
-    // the map got its initial view the instant js/3-map-engine.js parsed,
-    // which can be before the real mobile viewport height had settled -
-    // the loading overlay has kept the map untouched this whole time, so
-    // its safe here to resync maplibres cached container size and reapply
-    // the real starting view, clearing out any drift a stale size baked
-    // into that first setview (this is what made the map sometimes start
-    // off center, and every flyto after it land off too)
+    // map got its initial size before mobile viewport height settled -
+    // resync now that the overlay (which kept it untouched) is gone
     if (map) {
       map.resize();
       map.jumpTo({ center: [23.7275, 37.9838], zoom: 12 });
@@ -199,7 +194,6 @@ function elFromHTML(html) {
   return wrapper.firstElementChild;
 }
 
-// straight-line (haversine) distance in meters between two {lat,lng} points
 // clock time a bus/train is expected at, given "arrives in N minutes" -
 // used as the smaller sub-line under a stop's own minutes-until countdown
 function formatEtaClock(minutesFromNow) {
@@ -211,6 +205,7 @@ function formatEtaClock(minutesFromNow) {
   return `${hh}:${mm}`;
 }
 
+// straight-line (haversine) distance in meters between two {lat,lng} points
 function distanceMeters(a, b) {
   const R = 6371000;
   const toRad = (d) => (d * Math.PI) / 180;
@@ -233,9 +228,8 @@ function createDotMarkerElement(diameter, fillColor, { strokeColor = "#fff", str
   return el;
 }
 
-// no canvas filter runs in dark mode (see styles.css) - the map keeps its
-// light style and every custom color renders as configured in both themes.
-// this only matters to the app's own dom ui at this point (panels, buttons)
+// no canvas filter runs in dark mode - only matters for the app's own dom
+// ui at this point (panels, buttons), the map renders as configured either way
 function isDarkTheme() {
   return document.documentElement.getAttribute('data-theme') === 'dark';
 }

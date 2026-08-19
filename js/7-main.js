@@ -11,11 +11,43 @@ let mapSuburbanLinesGeoJSON = null;
 function buildGLLayers(dataCache, suburbanLinesGeoJSON) {
   ensureHeadingArrowImages();
 
+  // maplibre paint expressions can't index into a plain js object like
+  // metroLineColors/tramColors by a dynamic key, so the per-feature color
+  // is precomputed into the geojson itself instead of expressed in gl
+  dataCache.metroLinesData.features.forEach(f => {
+    f.properties.lineColor = metroLineColors[f.properties.LINE] || '#000000';
+  });
+  map.addSource(SOURCE_IDS.metroLines, { type: 'geojson', data: dataCache.metroLinesData });
+  map.addLayer({
+    id: LAYER_IDS.metroLines,
+    type: 'line',
+    source: SOURCE_IDS.metroLines,
+    paint: {
+      'line-color': ['get', 'lineColor'],
+      'line-width': 4,
+      'line-opacity': 0.8,
+    },
+  });
+
+  suburbanLinesGeoJSON.features.forEach(f => {
+    f.properties.color = f.properties.color || '#A9A9A9';
+  });
+  map.addSource(SOURCE_IDS.suburbanLines, { type: 'geojson', data: suburbanLinesGeoJSON });
+  map.addLayer({
+    id: LAYER_IDS.suburbanLines,
+    type: 'line',
+    source: SOURCE_IDS.suburbanLines,
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': 3.5,
+      'line-opacity': 0.75,
+    },
+  });
+
   map.addSource(SOURCE_IDS.busStops, { type: 'geojson', data: mergedStopsGeoJSON });
 
-  // added before the stops circle layer so it stacks underneath the dots
-  // (gl draws layers bottom-to-top in add order) - the arrow reads as
-  // poking out from behind the stop rather than floating on top of it
+  // added above metro/suburban lines (gl draws bottom-to-top in add order) so
+  // stops sit on top of those lines; heading arrow still precedes the dot so it stacks underneath it
   map.addLayer({
     id: LAYER_IDS.stopHeading,
     type: 'symbol',
@@ -69,39 +101,6 @@ function buildGLLayers(dataCache, suburbanLinesGeoJSON) {
     },
   });
   applyStopLabelZoomRange();
-
-  // maplibre paint expressions can't index into a plain js object like
-  // metroLineColors/tramColors by a dynamic key, so the per-feature color
-  // is precomputed into the geojson itself instead of expressed in gl
-  dataCache.metroLinesData.features.forEach(f => {
-    f.properties.lineColor = metroLineColors[f.properties.LINE] || '#000000';
-  });
-  map.addSource(SOURCE_IDS.metroLines, { type: 'geojson', data: dataCache.metroLinesData });
-  map.addLayer({
-    id: LAYER_IDS.metroLines,
-    type: 'line',
-    source: SOURCE_IDS.metroLines,
-    paint: {
-      'line-color': ['get', 'lineColor'],
-      'line-width': 4,
-      'line-opacity': 0.8,
-    },
-  });
-
-  suburbanLinesGeoJSON.features.forEach(f => {
-    f.properties.color = f.properties.color || '#A9A9A9';
-  });
-  map.addSource(SOURCE_IDS.suburbanLines, { type: 'geojson', data: suburbanLinesGeoJSON });
-  map.addLayer({
-    id: LAYER_IDS.suburbanLines,
-    type: 'line',
-    source: SOURCE_IDS.suburbanLines,
-    paint: {
-      'line-color': ['get', 'color'],
-      'line-width': 3.5,
-      'line-opacity': 0.75,
-    },
-  });
 
   dataCache.tramLinesData.features.forEach(f => {
     f.properties.lineColor = tramColors[f.properties.LINET] || '#c078aa';

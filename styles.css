@@ -673,6 +673,31 @@ input[type="text"] {
 
 .lineid-text { font-weight: 700; font-size: 14px; }
 
+.arrival-info-btn {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--surface-hi);
+    color: var(--accent);
+    border: 1px solid var(--btn-border);
+    box-shadow: var(--shadow-xs);
+    font-size: 10px;
+    font-weight: 700;
+    font-style: italic;
+    font-family: Georgia, serif;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.arrival-info-btn:hover { background: var(--surface-hover); }
+
 /* live vs scheduled city arrivals - pulsing green for a tracked vehicle, gray for a schedule-only time */
 .arrival-status-dot {
     position: absolute;

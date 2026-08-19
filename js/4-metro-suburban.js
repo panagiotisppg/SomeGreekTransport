@@ -54,9 +54,8 @@ function createSuburbanIcon(groups) {
   return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" style="filter: drop-shadow(0 1px 1px rgba(0,0,0,0.4));">${content}</svg>`;
 }
 
-// same dot treatment as createMetroIcon (same viewBox/radius/stroke/shadow,
-// sized the same way via getMetroIconSize) plus the gate letter+number
-// baked into the dot itself instead of a separate label
+// same dot treatment as createMetroIcon, plus the gate letter+number baked
+// into the dot itself instead of a separate label
 function createFerryIcon(gate) {
   const size = 24;
   const center = size / 2;
@@ -70,10 +69,8 @@ function createFerryIcon(gate) {
 // luminance (>=140 reads better with dark text than white)
 const FERRY_DARK_TEXT_GATES = new Set(['E1', 'E9']);
 
-// simple white ferry/ship silhouette (hull + cabin + bridge), used on its
-// own small blue pill badge next to the gate panel's title - the bottom
-// edge is scalloped with wave-colored semicircles (matching the badge
-// background) to read as waves lapping the hull
+// white ship silhouette for the pill badge next to the gate panel title -
+// scalloped bottom edge reads as waves lapping the hull
 function createShipGlyph() {
   return `<svg viewBox="-4 0 32 24" width="22" height="16">
     <path d="M12 3 L17 11 L7 11 Z" fill="white"/>
@@ -150,10 +147,8 @@ const trainStatusLabels = {
   cancelled: 'Cancelled',
 };
 
-// blocklist instead of an allowlist - checked live across the whole
-// network and the only real values are suburban intercity regional and
-// freight - an allowlist missed regional shown as ic regional since ic is
-// the line group and would keep missing anything else not yet seen
+// blocklist not allowlist - an allowlist missed "ic regional" (ic is the
+// line group) and would keep missing anything else not yet seen
 const nonPassengerServiceTypes = new Set(['Freight']);
 function isPassengerService(serviceType) {
   return !!serviceType && !nonPassengerServiceTypes.has(serviceType);
@@ -208,11 +203,8 @@ function mergeTrainEvents(arrivals, departures) {
   return merged;
 }
 
-// name is optional - the live sheet uses it to show the actual station
-// name under the role label since the station panel rows leave it out
-// as the label there already says which station its about
-// avgdelay is optional too - once a leg has its own real actualtime that
-// always wins and the average only fills in a guess for legs still in the future
+// name is optional (live sheet shows it under the role label, station panel
+// rows dont need it); avgDelay only fills in a guess when actualtime is missing
 function renderTrainLeg(leg, label, showStatus = true, reserveDelaySpace = false, name = null, avgDelay = 0) {
   if (!leg) return '';
   const diff = computeDelayMinutes(leg);
@@ -222,11 +214,8 @@ function renderTrainLeg(leg, label, showStatus = true, reserveDelaySpace = false
                    : diff < 0 ? `<span class="train-delay-chip early">${diff}m</span>`
                    : (reserveDelaySpace ? '<span class="train-delay-chip placeholder"></span>' : '');
 
-  // the station arrivals/departures endpoint always fills actualtime with a
-  // copy of scheduledtime before the real event happens under a bunch of
-  // different status strings like scheduled approaching boarding and ready
-  // the schedule endpoint instead leaves actualtime genuinely null until then
-  // so checking both shapes is the only reliable hasnt happened yet signal
+  // arrivals/departures endpoint copies scheduledTime into actualTime pre-event;
+  // the schedule endpoint leaves it null - checking both is the reliable signal
   const hasNoRealActual = !leg.actualTime || leg.actualTime === leg.scheduledTime;
   const roundedAvg = Math.round(avgDelay);
   const estimate = (hasNoRealActual && roundedAvg !== 0)
@@ -327,9 +316,8 @@ function identifyTrainLineGroup(route) {
   return best;
 }
 
-// no stop dot ever flashes - instead the one connecting line between the
-// last confirmed stop and the next one gets a smooth car indicator style
-// chase so its clear where the train is heading without every dot pulsing
+// no stop dot ever flashes - the connecting line between the last confirmed
+// stop and the next gets a smooth chase animation instead
 function renderRouteStop(stop, isThisStation, isChasingSegment, avgDelay = 0) {
   const time = stop.role === 'origin' ? stop.scheduledDeparture : stop.scheduledArrival;
   const actual = stop.role === 'origin' ? stop.actualDeparture : stop.actualArrival;
@@ -355,10 +343,8 @@ function renderRouteStop(stop, isThisStation, isChasingSegment, avgDelay = 0) {
     </div>`;
 }
 
-// a delay picked up early usually sticks for the rest of the trip so the
-// scheduled time alone is misleading for stops further down the line -
-// average the delay across whatever stops already have real data and use
-// that to give upcoming stops an estimated time too
+// a delay picked up early usually sticks for the rest of the trip - average
+// it across stops with real data and use that to estimate upcoming stops
 function getStopDelayMinutes(stop) {
   const time = stop.role === 'origin' ? stop.scheduledDeparture : stop.scheduledArrival;
   const actual = stop.role === 'origin' ? stop.actualDeparture : stop.actualArrival;
@@ -453,9 +439,8 @@ function renderTrainRow(event) {
   const arrivalLabel = hasPassedOurStation ? `Arrived at ${stationName}` : `Arriving at ${stationName}`;
   const departureLabel = hasPassedOurStation ? `Departed ${stationName}` : `Departing ${stationName}`;
   const liveProgressSection = isLiveOnMap ? renderTrainRowLiveProgress(scheduleId) : '';
-  // route data needed for the average is only ever cached for a not yet expanded
-  // row if its also live on the map since getlivetraincolor already fetches it
-  // for those to pick the line color so this reuses that instead of a fresh fetch
+  // an unexpanded row only has cached route data if getLiveTrainColor already
+  // fetched it for the line color - reuse that instead of a fresh fetch
   const cachedSchedule = scheduleId ? suburbanScheduleCache.get(scheduleId) : null;
   const avgDelay = cachedSchedule ? computeAverageRouteDelay(cachedSchedule.route) : 0;
   return `
@@ -483,11 +468,8 @@ function renderTrainRow(event) {
     </div>`;
 }
 
-// the up front prefetch in fetchandrendersuburbanarrivals already warms the
-// cache for every row but if that one request failed or was still in
-// flight the arriving/departing boxes render with no average to show
-// once the dropdown toggle fetches the schedule for itself patch those
-// boxes in place too instead of leaving them stuck without an estimate
+// the prefetch in fetchAndRenderSuburbanArrivals can fail or still be in
+// flight - patch the boxes in once the dropdown's own fetch resolves
 function refreshTrainRowTimesEstimate(row, scheduleId) {
   const event = currentSuburbanTrainEvents.find(e => e.scheduleId === scheduleId);
   const timesEl = row.querySelector(':scope > .train-times');
@@ -720,11 +702,8 @@ function showSuburbanInfo(properties) {
   fetchAndRenderSuburbanArrivals(properties, true);
 }
 
-// live position data speed and next stop already streams in continuously
-// on its own so this doesnt need any new network requests just rereads
-// whatever the sse stream already put in livetrainpositionsbyscheduleid
-// and patches the affected rows in place every few seconds instead of
-// waiting for the full 60s arrivals refresh
+// no new network requests - just rereads what the sse stream already put
+// in liveTrainPositionsByScheduleId and patches rows instead of waiting for the 60s refresh
 function refreshLiveTrainRowProgressSections() {
   const contentArea = document.getElementById('suburban-station-content');
   if (!contentArea) return;
@@ -873,9 +852,8 @@ function parseOlpResponse(htmlText) {
   return sections;
 }
 
-// olp mixes the greek and latin capital E ("Ε9" vs "E9") for the gate
-// column depending on which row you get, so gate matching has to normalize
-// that away rather than compare the raw text
+// olp mixes greek and latin capital E ("Ε9" vs "E9") for the gate column,
+// so matching has to normalize that away rather than compare raw text
 function normalizeGateLabel(raw) {
   return (raw || '').replace(/Ε/g, 'E').trim().toUpperCase();
 }
@@ -929,9 +907,8 @@ function expandShipName(name) {
 // span today/tomorrow) so it's dropped to keep the row compact
 const FERRY_MONTH_ABBR = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
-// "6/8/2026" + "01:40" -> "06 AUG 01:40" - the year is dropped (schedules
-// only ever span today/tomorrow so it's never useful) and the month is
-// spelled out instead of shown as a bare, easy to misread number
+// "6/8/2026" + "01:40" -> "06 AUG 01:40" - year dropped (only today/tomorrow
+// ever shown), month spelled out instead of an easy-to-misread number
 function formatFerryDateTime(dateStr, timeStr) {
   const [day, month] = (dateStr || '').split('/');
   if (!day || !month) return timeStr || '';
@@ -1120,10 +1097,8 @@ tramStationClose.addEventListener('click', () => {
 
 // live train positions from the sse stream
 const TRAIN_STREAM_URL = `${PROXY_URL}${encodeURIComponent('https://railway.gov.gr/api/train-stream')}`;
-// dark gray for trains with no matched line group intercity regional
-// freight anything not one of our local suburban groups and while a
-// schedule is still loading instead of a color that looks like it belongs
-// to a line
+// dark gray for anything not one of our local suburban groups (intercity,
+// regional, freight) and while a schedule is still loading
 const DEFAULT_LIVE_TRAIN_COLOR = '#4b5563';
 let liveTrainMarkers = new Map(); // train id to marker
 let pendingLiveTrainScheduleFetches = new Set(); // schedule ids currently being fetched
@@ -1180,12 +1155,8 @@ function createLiveTrainMarker(lngLat, heading, color) {
   return new maplibregl.Marker({ element: el }).setLngLat(lngLat);
 }
 
-// last confirmed stop and the next one not the overall origin and destination
-// the timetable board's live telemetry (when its been fetched this session)
-// is a fresher real time signal than the schedules own state, which only
-// flips a stop to passed once an actual arrival time is reported - preferring
-// it here keeps the live sheet and the timetable agreeing on the same train
-// instead of each drifting to a different "current" stop
+// last confirmed stop and the next, not origin/destination - prefers the
+// timetable board's live telemetry over the schedule's own state so both agree on "current"
 function getTrainProgressStops(route, scheduleId) {
   if (!route || route.length === 0) return null;
   const telemetry = scheduleId ? timetableTelemetryByScheduleId.get(scheduleId) : null;
@@ -1211,22 +1182,15 @@ function abbreviateProgressStopName(name) {
 
 const trainAtStopRadiusMeters = 150;
 
-// yards like the rentis depot fan out over several hundred meters of sidings
-// around the one point we have coordinates for so guessing the nearest stop
-// for an unmatched train needs a much wider radius than a real platform does
+// yards like the rentis depot fan out over hundreds of meters around the
+// one point we have coordinates for, so this needs a wider radius than a platform
 const nearestStopRadiusMeters = 500;
 
-// the schedule data only flips a stop over to passed once the api reports
-// a real arrival time which can lag behind reality - a train sitting still
-// this close to the stop its heading to is for all practical purposes
-// already doing that stop even if the route still calls it the next one
-// distancetonextstation_m from the live stream is almost always null in
-// practice even for trains with a real position and a known next station
-// so this falls back to our own stop coordinates and measures it directly
+// the schedule only flips a stop to passed once a real arrival lags in -
+// distanceToNextStation_m is usually null too, so this measures our own stop coords instead
 function isTrainStoppedAtNextStation(pos) {
-  // the timetable boards telemetry reports speed in km/h directly and, when
-  // available, is preferred over the position streams own speed field so
-  // the two features never disagree about whether a train is stopped
+  // prefer the timetable board's own speed field when available so the two
+  // features never disagree about whether a train is stopped
   const telemetry = pos.scheduleId ? timetableTelemetryByScheduleId.get(pos.scheduleId) : null;
   if (telemetry && typeof telemetry.speedKmh === 'number') {
     if (telemetry.speedKmh >= 1) return false;
@@ -1245,9 +1209,8 @@ function isTrainStoppedAtNextStation(pos) {
   return distance <= trainAtStopRadiusMeters;
 }
 
-// finds the physically nearest stop by straight line distance regardless of
-// which line its on - a schedule tells us which stop is next but an
-// unmatched train has no schedule so the closest one is the best guess
+// nearest stop by straight line distance, any line - an unmatched train has
+// no schedule to say whats next, so closest is the best guess
 function findClosestSuburbanStop(lat, lng) {
   let closestName = null;
   let closestDistance = Infinity;
@@ -1271,9 +1234,8 @@ function getStoppedNearbyStopName(pos) {
   return closest.name;
 }
 
-// you are here indicator green dot for last stop pulsing dot for next stop and a chasing line between them
-// isatstop drops the two endpoint layout entirely for a single slower
-// flashing dot on the stop its actually sitting at right now
+// green dot for last stop, pulsing dot for next, chasing line between them -
+// isAtStop drops that layout for one slow-flashing dot on the actual stop
 function renderTrainProgressLine(current, next, isAtStop = false, pos = null) {
   if (!next) {
     return `
@@ -1285,10 +1247,8 @@ function renderTrainProgressLine(current, next, isAtStop = false, pos = null) {
       </div>`;
   }
   if (isAtStop) {
-    // the schedule only flips a stop to "next" based on the apis own claim,
-    // which can be wrong or stale - while actually stopped, trust the trains
-    // real gps position over that claim and name whichever real stop its
-    // physically sitting next to instead
+    // the schedule's "next" claim can be wrong or stale - while stopped,
+    // trust the train's real gps position over it instead
     const nearest = pos ? findClosestSuburbanStop(pos.lat, pos.lng) : null;
     const stoppedName = (nearest && nearest.distance <= trainAtStopRadiusMeters) ? nearest.name : next.name;
     return `
@@ -1314,11 +1274,8 @@ function renderTrainProgressLine(current, next, isAtStop = false, pos = null) {
     </div>`;
 }
 
-// only for a station panel row whose train is also being tracked live on
-// the map right now - the live stream already gives us a real speed and
-// next station directly so nothing here needs calculating from distance
-// shared by the station panel row and the live sheet - the live stream
-// already gives a real speed directly so theres nothing to calculate
+// shared by the station panel row and the live sheet - only for a train
+// tracked live on the map, since the stream already gives a real speed directly
 function renderTrainSpeedBadge(speed) {
   if (typeof speed !== 'number' || isNaN(speed)) return '';
   return `
@@ -1340,10 +1297,8 @@ function renderTrainRowLiveProgress(scheduleId) {
   return `<div class="train-live-progress">${progressLine}${speedHtml}</div>`;
 }
 
-// shown in the sheets own header next to the close button instead of
-// inside the card and bigger and bolder than the compact station panel rows
-// a train with no matched schedule still usually has a next station on the
-// stream itself so that becomes the fallback headline instead of leaving it blank
+// shown in the sheet's own header, bigger/bolder than the compact panel rows -
+// an unmatched train still usually has a next station on the stream itself as fallback
 function renderLiveTrainTitle(pos) {
   const scheduleId = pos.scheduleId || null;
   const cached = scheduleId ? suburbanScheduleCache.get(scheduleId) : null;
@@ -1356,9 +1311,8 @@ function renderLiveTrainTitle(pos) {
       <svg class="live-train-title-arrow" viewBox="0 0 24 24"><path d="M4 12h14m0 0l-5-5m5 5l-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span class="live-train-title-to">${destName}</span>`;
   }
-  // a stopped train reads oddly with the arrow layout since theres no real
-  // route to point between so this keeps the honest generic label up top
-  // and leaves the actual stopped at name to the bigger detail line below
+  // a stopped train has no real route to point between - generic label up
+  // top, actual "stopped at" name goes on the bigger detail line below
   if (getStoppedNearbyStopName(pos)) {
     return '<span class="live-train-title-unknown">Train of unknown origin and destination</span>';
   }
@@ -1378,11 +1332,8 @@ function formatCorridorName(corridor) {
   return corridor.split(/[\s_]+/).map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
 }
 
-// hover tooltip for a train marker on the map - schedule is fetched
-// asynchronously so this can be called again once its cached to swap the
-// bare loading state for the real origin and destination - the richer
-// corridor/next station/speed fallback lives on the live train sheet
-// instead of here so the hover stays a quick glance not a full readout
+// hover tooltip - called again once the async schedule fetch resolves to
+// swap the loading state for real origin/destination, kept to a quick glance
 function renderLiveTrainTooltip(pos) {
   const cached = pos.scheduleId ? suburbanScheduleCache.get(pos.scheduleId) : null;
   const schedule = cached ? cached.schedule : null;
@@ -1445,9 +1396,8 @@ function renderLiveTrainRow(pos) {
   } else if (scheduleId) {
     progressSection = '<div class="train-route-diagram-loading">Loading route…</div>';
   } else {
-    // no scheduleid at all means the api never matched this one to a
-    // schedule but the stream still tags it with a corridor and a real
-    // speed so show that instead of leaving the whole card blank
+    // no scheduleId means the api never matched a schedule, but the stream
+    // still tags a corridor and speed - show that instead of a blank card
     const stoppedStopName = getStoppedNearbyStopName(pos);
     const corridorText = pos.corridor ? `${formatCorridorName(pos.corridor)} corridor` : '';
     const speedBadge = renderTrainSpeedBadge(pos.speed);
@@ -1481,9 +1431,8 @@ function renderLiveTrainRow(pos) {
     </div>`;
 }
 
-// a fixed sheet instead of a map anchored popup - always has a proper spot
-// on screen no matter where the trains dot is so theres nothing to fit or
-// pan for in the first place
+// fixed sheet, not a map-anchored popup - always has a proper spot on
+// screen regardless of where the train's dot is
 let currentLiveTrainSheetId = null;
 
 const LIVE_TRAIN_DEMOTABLE_PANELS = [stopInfoPanel, suburbanStationPanel, tramStationPanel, metroStationPanel, cityStopPanel, schedulePanel];
@@ -1498,9 +1447,8 @@ function undemotePanelsBehindLiveTrainSheet() {
   LIVE_TRAIN_DEMOTABLE_PANELS.forEach(panel => { if (panel) panel.classList.remove('panel-demoted'); });
 }
 
-// on desktop if another panel is already open stack the live train sheet
-// right below it instead of on top of it - mobile keeps the bottom sheet
-// overlap since theres no room to stack two of them side by side vertically
+// desktop stacks the live train sheet below an already-open panel; mobile
+// keeps the bottom-sheet overlap since theres no room to stack vertically
 function positionLiveTrainSheet() {
   liveTrainPanel.style.top = '';
   liveTrainPanel.style.maxHeight = '';
@@ -1513,9 +1461,8 @@ function positionLiveTrainSheet() {
   liveTrainPanel.style.maxHeight = `calc(100vh - ${top}px - ${gap}px)`;
 }
 
-// redraws one markers icon with the sonar ring on or off depending on
-// whether its the train the sheet is currently showing - called right away
-// on select/deselect instead of waiting for the next ~1s position tick
+// redraws one marker's sonar ring on/off for the sheet's current train -
+// called right away on select/deselect instead of waiting for the next tick
 function refreshLiveTrainMarkerIcon(id) {
   const marker = liveTrainMarkers.get(id);
   const pos = liveTrainLatestPositions.get(id);
@@ -1707,9 +1654,8 @@ function animateTrainMarker(marker, from, to, duration = 900) {
   marker._animationId = requestAnimationFrame(step);
 }
 
-// every message gets applied as it arrives, same stream/rate as always -
-// the animation duration just tracks the real gap since the last message
-// so markers glide smoothly no matter how often the server actually sends
+// every message applies as it arrives - animation duration just tracks the
+// real gap since the last one, so markers glide regardless of server rate
 let lastTrainUpdateTime = null;
 let trainPositionEventSource = null;
 

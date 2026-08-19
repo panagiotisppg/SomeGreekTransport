@@ -75,11 +75,8 @@ function clearPlottedStopMarkers() {
   plottedStopMarkers = [];
 }
 
-// plotted-route stop markers need their own click handler - the bulk stops
-// layer underneath is filtered out for these exact stops (updatePlottedStopsFilter)
-// so a tap would otherwise go nowhere. route.stops uses different property
-// casing than the bulk geojson (StopDescr vs stop_descr) so this looks the
-// stop up in mergedStopsGeoJSON by StopCode first to get the canonical shape
+// bulk stops layer is filtered out under these markers, so they need their
+// own click handler - looks up mergedStopsGeoJSON by StopCode for the canonical property casing
 function openStopInfoFromPlottedMarker(stopData, lng, lat) {
   map.flyTo({ center: [lng, lat], zoom: 17, duration: 750 });
   if (selectedStopMarker) selectedStopMarker.remove();
@@ -99,19 +96,16 @@ function openStopInfoFromPlottedMarker(stopData, lng, lat) {
   showStopInfo(currentStopProperties);
 }
 
-// shared by the draw-in reveal (plotAnimatedRoute) and the reverse deletion
-// animation (animateRouteDeletion) - rebuilds the visible stop subset fresh
-// each frame, cheap since routes only ever have tens of stops
+// shared by the draw-in reveal and the reverse deletion animation - rebuilds
+// the visible stop subset fresh each frame, cheap since routes have only tens of stops
 function renderHighlightedStopsSubset(stopsSubset, color) {
   clearPlottedStopMarkers();
   plottedStopCodes.clear();
   const style = highlightedStopStyles[color];
   stopsSubset.forEach((stopData) => {
     plottedStopCodes.add(stopData.StopCode);
-    // the currently open stop already has its own bigger selectedStopMarker
-    // on the map - still excluded from the bulk layer above (that's what
-    // plottedStopCodes.add just did) but skips getting a second, smaller
-    // dot of its own stacked underneath that one
+    // the open stop already has its own bigger selectedStopMarker - skip a
+    // second, smaller dot stacked underneath it
     if (currentStopProperties && stopData.StopCode == currentStopProperties.StopCode) return;
     const lat = parseFloat(stopData.StopLat), lng = parseFloat(stopData.StopLng);
     const el = createDotMarkerElement(style.radius * 2, style.fillColor, { strokeWidth: style.weight });
@@ -146,10 +140,8 @@ function updateHighlightedStops() {
     const lat = parseFloat(stopData.StopLat), lng = parseFloat(stopData.StopLng);
     const stopCode = stopData.StopCode;
     plottedStopCodes.add(stopCode);
-    // the currently open stop already has its own bigger selectedStopMarker
-    // (+ selectedHeadingMarker) on the map - still excluded from the bulk
-    // layer above but skips a second, smaller dot/arrow of its own stacked
-    // right underneath
+    // the open stop already has its own bigger selectedStopMarker +
+    // selectedHeadingMarker - skip a second, smaller dot/arrow stacked underneath
     if (currentStopProperties && stopCode == currentStopProperties.StopCode) return;
     let el;
     if (colors.size > 1) {
@@ -233,9 +225,8 @@ function updateArrivalsUIState() {
   });
 }
 
-// called from onThemeChange once a style swap finishes - setStyle() wipes
-// any plotted route's source/layers, so this rebuilds them from route.points
-// (a route mid-draw-animation during the toggle just snaps to fully drawn)
+// called from onThemeChange - setStyle() wipes plotted route layers, so this
+// rebuilds them from route.points (a mid-animation route just snaps to fully drawn)
 function rebuildPlottedRouteLayers() {
   plottedRoutes.forEach((route) => {
     const lineStyle = routeStyles[route.color];
@@ -613,12 +604,8 @@ async function refreshBusLocations(routeCode) {
 
 // panel logic
 async function showStopInfo(stopProperties) {
-  // callers already set currentStopProperties to this stop before calling
-  // in - refreshing now both restores whichever previously-selected stop's
-  // own highlighted dot (it's no longer the one currentStopProperties
-  // points at) and suppresses this new one's, if either is part of a
-  // plotted route (see the currentStopProperties check inside
-  // updateHighlightedStops)
+  // caller already set currentStopProperties - refreshing restores the
+  // previous stop's dot and suppresses this one's, if either is on a plotted route
   if (plottedRoutes.length > 0) updateHighlightedStops();
   clearDemotedPanels();
   stopSuburbanTimer();
@@ -766,7 +753,14 @@ async function fetchAndDisplayArrivals(arrivalsUrl) {
           row.dataset.routeCode = arrival.route_code;
           row.dataset.lineId = routeInfo.LineID;
           row.dataset.routeDescr = routeInfo.RouteDescrEng;
-          row.innerHTML = `<div class="arrival-lineid"><span class="lineid-text">${routeInfo.LineID}</span><span class="veh-code-text">${arrival.veh_code}</span></div><div class="arrival-descr">${routeInfo.RouteDescrEng}</div><div class="arrival-right-content"><div class="arrival-time"><span class="arrival-time-min">${arrival.btime2}'</span><span class="arrival-eta">${formatEtaClock(arrival.btime2)}</span></div><div class="arrival-time-container"><button class="plot-route-icon-btn">${plotRouteIconSvg}</button><div class="btime-timer-wrapper"><svg class="timer-svg btime-timer-svg" viewBox="0 0 36 36"><path class="timer-track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path><path class="timer-progress btime-timer-progress" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path></svg><div class="timer-text btime-timer-text"></div></div></div></div>`;
+          row.innerHTML = `<div class="arrival-lineid"><button class="arrival-info-btn" title="Line info">i</button><span class="lineid-text">${routeInfo.LineID}</span><span class="veh-code-text">${arrival.veh_code}</span></div><div class="arrival-descr">${routeInfo.RouteDescrEng}</div><div class="arrival-right-content"><div class="arrival-time"><span class="arrival-time-min">${arrival.btime2}'</span><span class="arrival-eta">${formatEtaClock(arrival.btime2)}</span></div><div class="arrival-time-container"><button class="plot-route-icon-btn">${plotRouteIconSvg}</button><div class="btime-timer-wrapper"><svg class="timer-svg btime-timer-svg" viewBox="0 0 36 36"><path class="timer-track" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path><path class="timer-progress btime-timer-progress" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"></path></svg><div class="timer-text btime-timer-text"></div></div></div></div>`;
+          const infoBtn = row.querySelector('.arrival-info-btn');
+          if (infoBtn) {
+            infoBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              showSchedulePanel(routeInfo);
+            });
+          }
           const plotBtn = row.querySelector('.plot-route-icon-btn');
           if (plotBtn) {
             plotBtn.addEventListener('click', (e) => {
@@ -852,10 +846,8 @@ stopInfoClose.addEventListener("click", () => {
     selectedHeadingMarker.remove();
     selectedHeadingMarker = null;
   }
-  // closing the panel means this stop no longer has its own selectedStopMarker
-  // to stand in for it - if it's still part of a plotted route, it needs its
-  // own highlighted dot back (updateHighlightedStops skips that while the
-  // stop's info panel is the one showing it, see currentStopProperties check there)
+  // closing loses the selectedStopMarker standing in for this stop - give it
+  // its highlighted dot back if it's still on a plotted route
   if (plottedRoutes.length > 0) updateHighlightedStops();
 });
 

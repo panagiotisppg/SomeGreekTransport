@@ -32,6 +32,10 @@ const CITY_REGISTRY = [
   // stops dont (never onboarded there) - no fallback for those, nothing to fall back to
   { id: 'sporades', name: 'Sporades', lat: 39.1356, lng: 23.5777, source: 'citybus', cityId: 135 },
   { id: 'aigio', name: 'Aigio', lat: 38.2469, lng: 22.0841, source: 'citybus', cityId: 'aigio', liveSubdomain: 'aigio' },
+  // not citybus.gr cities either - routes.json here is spatially inferred
+  // (no api gives route->line directly), validated against live ground truth
+  { id: 'kalamata', name: 'Kalamata', lat: 37.0312, lng: 22.1163, source: 'citybus', cityId: 'kalamata', liveSubdomain: 'kalamata' },
+  { id: 'karditsa', name: 'Karditsa', lat: 39.3593, lng: 21.9106, source: 'citybus', cityId: 'karditsa', liveSubdomain: 'karditsa' },
 ];
 
 // a bit further out than expected so theres room to zoom back out and
@@ -410,9 +414,8 @@ function parseVehicleCoord(lat, lng) {
   return { lat: flat, lng: flng };
 }
 
-// /api/eta/{code} on these liveSubdomain-backed cities returns live+scheduled
-// trips together, tagged by lat/lng presence just like citybus - split it the
-// same way so it can flow through the same mergeCityArrivals path as every city
+// /api/eta/{code} returns live+scheduled together, tagged by lat/lng presence
+// just like citybus - split it the same way so it flows through mergeCityArrivals
 async function fetchLiveSubdomainEta(entry, stop) {
   const url = `${PROXY_URL}${encodeURIComponent(`${CITY_MYBUS_BASE(entry.liveSubdomain)}/api/eta/${stop.code}`)}`;
   const res = await fetch(url);
@@ -423,7 +426,10 @@ async function fetchLiveSubdomainEta(entry, stop) {
   (data.vehicles || []).forEach((v) => {
     const { lat, lng } = parseVehicleCoord(v.latitude, v.longitude);
     if (lat != null && lng != null) {
-      vehicles.push({ lineCode: v.lineCode, vehicleCode: v.vehicleCode, routeName: v.routeName || '', lat, lng, etaMinutes: v.departureMins, etaText: `${v.departureMins}'` });
+      // kalamata/karditsa dont send a real vehicleCode (always "") - synthesize
+      // one from line+route+rounded position so the marker still renders
+      const vehicleCode = v.vehicleCode || `${v.lineCode}-${v.lineName || ''}-${lat.toFixed(3)}-${lng.toFixed(3)}`;
+      vehicles.push({ lineCode: v.lineCode, vehicleCode, routeName: v.routeName || '', lat, lng, etaMinutes: v.departureMins, etaText: `${v.departureMins}'` });
     } else {
       trips.push({ lineCode: v.lineCode, routeName: v.routeName || '', lineColor: v.lineColor, minutesFromNow: v.departureMins });
     }
@@ -806,9 +812,8 @@ async function showCitySchedule(entry, line) {
   try {
     let trips;
     if (entry.liveSubdomain) {
-      // schedule here is keyed by routeCode (not lineCode) - fetch every route
-      // code serving this stop, then keep just this lines departures here.
-      // works even without a local routes.json (eg aigio has none)
+      // schedule is keyed by routeCode not lineCode - fetch every route code
+      // serving this stop, then keep just this line's departures
       const stopRouteCodes = activeCityStop.raw.routeCodes || [];
       const results = await Promise.all(stopRouteCodes.map(async (rc) => {
         const url = `${PROXY_URL}${encodeURIComponent(`${CITY_MYBUS_BASE(entry.liveSubdomain)}/api/schedule/${rc}?day=${day}`)}`;

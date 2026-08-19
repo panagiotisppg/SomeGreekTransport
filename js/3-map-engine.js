@@ -1,7 +1,6 @@
 // ─── layer/source ids ───────────────────────────────────────────────────────
-// bulk features are gl sources+layers, gpu rendered. bounded-count stuff
-// (stations, buses, live trains, selected/plotted stop dots) stays as
-// plain maplibregl.Marker dom elements
+// bulk features are gl sources+layers; bounded-count stuff (stations, buses,
+// live trains, selected/plotted stop dots) stays as plain marker dom elements
 const SOURCE_IDS = {
   busStops: "bus-stops",
   busNetwork: "bus-network",
@@ -25,12 +24,11 @@ const labelZoomThreshold = 16.5;
 const trainStationLabelZoomThreshold = 15;
 
 // ─── map init ───────────────────────────────────────────────────────────────
-// real dark/light base styles instead of a css filter on the canvas - a
-// filter would also distort every custom layer sharing that canvas
-// (stops, routes, metro/tram/suburban lines)
+// real dark/light base styles instead of a css filter - a filter would
+// also distort every custom layer sharing the canvas (stops, routes, lines)
 const MAP_STYLES = {
   light: "https://tiles.openfreemap.org/styles/liberty",
-  dark: "https://tiles.openfreemap.org/styles/dark",
+  dark: "https://tiles.openfreemap.org/styles/fiord",
 };
 
 const map = new maplibregl.Map({
@@ -44,10 +42,8 @@ const map = new maplibregl.Map({
 // all need this to have fired first
 const mapLoadPromise = new Promise((resolve) => map.once("load", resolve));
 
-// setStyle() throws away every runtime-added source/layer/image - rebuild
-// via rebuildMapLayersAfterStyleChange (js/7-main.js) and
-// rebuildPlottedRouteLayers (js/5-bus-logic.js). station markers are plain
-// dom markers and need no rebuilding.
+// setStyle() throws away every runtime-added source/layer/image - rebuilt via
+// rebuildMapLayersAfterStyleChange + rebuildPlottedRouteLayers, dom markers dont need it
 function onThemeChange() {
   const dark = isDarkTheme();
   map.setStyle(MAP_STYLES[dark ? "dark" : "light"]);
@@ -62,9 +58,8 @@ function onThemeChange() {
 }
 new MutationObserver(onThemeChange).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
-// baked once into the circle layer's paint expressions instead of being
-// recomputed in js on every zoomend - gl already re-evaluates interpolate
-// expressions per frame at zero cost
+// baked into the circle layer's paint expression instead of recomputed in
+// js on zoomend - gl already re-evaluates interpolate expressions per frame
 function stopRadiusExpr() {
   return [
     "interpolate", ["linear"], ["zoom"],
@@ -92,9 +87,8 @@ function applyStopLabelZoomRange() {
   map.setLayerZoomRange(LAYER_IDS.stopsLabel, getLabelZoomThreshold(), 24);
 }
 
-// rasterizes a small direction indicator for the bulk heading-arrow layer,
-// rotated per-feature via icon-rotate - a slim triangle sized to sit over
-// the stop dot itself rather than a big chevron floating above it
+// rasterizes a direction indicator for the bulk heading-arrow layer (rotated
+// per-feature via icon-rotate) - a slim triangle sized to sit over the dot
 const HEADING_ARROW_RASTER_SIZE = 128;
 const HEADING_ARROW_BOX = 32; // logical drawing box the points below are in - box center (16,16) is the anchor, ie the stop dot's own center
 function buildHeadingArrowImage(fillColor) {
@@ -111,11 +105,8 @@ function buildHeadingArrowImage(fillColor) {
   ctx.shadowBlur = 1;
   ctx.shadowOffsetY = 0.5;
   ctx.beginPath();
-  // same chevron-with-notch shape as the live train heading arrow
-  // (createLiveTrainIconSvg) and the dom-marker createHeadingIcon - shifted
-  // well clear of the box center (16,16) so the whole wedge, not just its
-  // tapered tip, sits past the stop dot's edge instead of tucked behind it.
-  // points "up" (north) before icon-rotate is applied per feature
+  // same chevron shape as createLiveTrainIconSvg/createHeadingIcon, shifted
+  // off-center so the wedge clears the dot edge - points north before icon-rotate
   ctx.moveTo(16, 2);
   ctx.lineTo(9, 14);
   ctx.lineTo(16, 11);
@@ -125,9 +116,8 @@ function buildHeadingArrowImage(fillColor) {
   ctx.restore();
   return ctx.getImageData(0, 0, size, size);
 }
-// tracks stopRadiusExpr()'s own zoom curve (only ever shown from
-// clickableStopZoomThreshold up) so the arrow scales with the dot instead
-// of staying a fixed size regardless of how big the dot currently is
+// tracks stopRadiusExpr()'s own zoom curve so the arrow scales with the
+// dot instead of staying a fixed size
 const HEADING_ARROW_SIZE_EXPR = ["interpolate", ["linear"], ["zoom"], 15, 0.14, 17, 0.2, 19, 0.27];
 
 // no canvas filter runs in dark mode, so one plain white raster works for
@@ -163,9 +153,8 @@ function ensureRouteArrowImage(colorName, baseHex) {
   return imageId;
 }
 
-// dark theme keeps its own explicit stop dot/label colors, same as any
-// other dark-mode ui color in the app - no canvas filter runs to fight
-// with, so these just paint exactly as given
+// dark theme gets its own explicit colors, same as any other dark-mode ui
+// color - no canvas filter runs to fight with, so these paint exactly as given
 const stopFillColors = { light: "#003366", dark: "#4d94ff" };
 const stopLabelColors = {
   light: { text: "#1e3a5f", halo: "#ffffff" },
@@ -185,9 +174,8 @@ function applyMapTheme() {
   }
 }
 
-// used for the bounded-count dom marker cases only: the big arrow on the
-// currently selected stop, and the per-stop arrows on a plotted route's
-// highlighted stops - returns a ready dom element
+// bounded-count dom marker cases only: the big arrow on the selected stop,
+// and per-stop arrows on a plotted route's highlighted stops
 function createHeadingIcon(heading, displaySize = 40) {
   if (heading === null || heading === undefined) return null;
   const viewPortSize = 40;
@@ -215,9 +203,8 @@ function getSuburbanIconSize(zoom) {
   return 27;
 }
 
-// dimmed to 0.3 while a route is plotted, restored to their own fixed
-// opacity when cleared - not routeLineOpacityExpr(), that's the bus
-// network's zoom-fade curve and faded these to invisible below zoom 8
+// dimmed to 0.3 while a route is plotted, restored on clear - not
+// routeLineOpacityExpr(), that's the bus network's separate zoom-fade curve
 const DIMMABLE_LINE_LAYERS = {
   [LAYER_IDS.metroLines]: 0.8,
   [LAYER_IDS.suburbanLines]: 0.75,
@@ -266,9 +253,8 @@ function updateAllLayers() {
   }
 }
 
-// hides a stop from the bulk gl layer once its own dom marker (a
-// plotted-route highlighted stop) is showing for it, so the dimmed
-// original dot doesn't peek out from behind it
+// hides a stop from the bulk gl layer once its own dom marker (a plotted-
+// route highlighted stop) is showing, so the dimmed dot doesnt peek through
 function updatePlottedStopsFilter() {
   // StopCode is a string or number depending on which api it came from -
   // match against the precomputed StopCodeStr instead (js/7-main.js)
@@ -300,7 +286,9 @@ function updateMetroStationsVisibility() {
 }
 
 function updateSuburbanStationsVisibility() {
-  const show = toggleSuburbanNetwork.checked && map.getZoom() >= 13;
+  // matches the other-cities pill expand zoom (js/9-cities.js) instead of its
+  // own separate number, so both turn on around the same amount of zoom-in
+  const show = toggleSuburbanNetwork.checked && map.getZoom() >= CITY_EXPAND_ZOOM;
   suburbanStationMarkers.forEach((entry) => {
     if (show && !entry.onMap) { entry.marker.addTo(map); entry.labelMarker.addTo(map); entry.onMap = true; }
     else if (!show && entry.onMap) { entry.marker.remove(); entry.labelMarker.remove(); entry.onMap = false; }
@@ -315,9 +303,8 @@ function updateTramStationsVisibility() {
   });
 }
 
-// same zoom threshold as the suburban stations (no layer-control checkbox
-// for these, unlike metro/suburban/tram - there's no bus network toggle to
-// piggyback gating on to begin with, and none was asked for)
+// same zoom threshold as suburban stations - no layer-control checkbox for
+// these unlike metro/suburban/tram, none was asked for
 function updateFerryStationsVisibility() {
   const show = map.getZoom() >= 13;
   ferryStationMarkers.forEach((entry) => {
@@ -335,8 +322,7 @@ function updateTrainStationLabels() {
 }
 
 // markers dont resize themselves like the circle layer does via a paint
-// expression, so this rebuilds each icon's html at the right size for the
-// current zoom only when the size actually changes rather than on every pan
+// expression, so this rebuilds each icon's html only when the size actually changes
 let lastMetroIconSize = null;
 let lastSuburbanIconSize = null;
 function updateTrainStationIconSizes() {

@@ -1,12 +1,5 @@
-// whole-day train timetable board
-// data sources (all proxied like every other railway.gov.gr call):
-//   - schedule-board?date=YYYY-MM-DD  : every schedule for the day, already carries
-//     baseline status/delay and the full per-stop routeStations - no per-train fetch needed
-//   - corridor-stations               : static corridor id -> display name lookup
-//   - schedule-telemetry/stream (SSE) : live delay/progress for in-progress trains,
-//     keyed by scheduleId. unlike the always-on live map stream this one is only
-//     opened while the board is visible and must be closed explicitly - it does not
-//     stop on its own
+// whole-day train timetable board - schedule-board gives every train for the
+// day in one call, corridor-stations names them, schedule-telemetry (sse) adds live delay/progress
 
 const TIMETABLE_CORRIDORS_URL = `${PROXY_URL}${encodeURIComponent('https://railway.gov.gr/api/public/corridor-stations')}`;
 const TIMETABLE_TELEMETRY_URL = `${PROXY_URL}${encodeURIComponent('https://railway.gov.gr/api/public/schedule-telemetry/stream')}`;
@@ -19,10 +12,8 @@ function getAthensDateString() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Athens' }).format(new Date());
 }
 
-// deterministic per-corridor color so badges stay stable across reloads
-// without hand-maintaining a color per corridor id - only used as a
-// fallback for schedules that dont match one of the real A1-A4 style
-// suburban line groups (eg the InterCity corridors)
+// deterministic per-corridor color, stable across reloads with no hand
+// maintained list - fallback for schedules outside the real A1-A4 line groups
 function colorForCorridor(corridorId) {
   if (timetableCorridorColors.has(corridorId)) return timetableCorridorColors.get(corridorId);
   let hash = 0;
@@ -32,33 +23,24 @@ function colorForCorridor(corridorId) {
   return color;
 }
 
-// the map already has an official color per suburban line group (A1-A4
-// etc, suburbanGroupColors) keyed by the same government station ids the
-// schedule-boards own routeStations use - identifyTrainLineGroup (from
-// js/4-metro-suburban.js) already does this exact matching for the live
-// map, so this reuses it instead of the hash-based fallback whenever a
-// schedule actually belongs to one of those real lines
+// reuses identifyTrainLineGroup (js/4-metro-suburban.js) for the map's own
+// official suburbanGroupColors instead of the hash fallback when it applies
 function colorForSchedule(schedule) {
   const lineGroup = identifyTrainLineGroup(schedule.routeStations || []);
   if (lineGroup && suburbanGroupColors.has(lineGroup)) return suburbanGroupColors.get(lineGroup);
   return colorForCorridor(schedule.corridor);
 }
 
-// corridors (E85, PIRAIR, ...) are broad - a lot of trains only run a
-// sub-segment of one (eg most PIRAIR trains are actually "Anw Liosia -
-// Aerodromio", not the full "Peiraias - Aerodromio" corridor), so the
-// filter chips are built from the actual origin/destination pairs running
-// that day rather than the handful of top level corridors
+// corridors are broad (most PIRAIR trains only run "Anw Liosia - Aerodromio",
+// not the full corridor), so chips are built from actual origin/destination pairs instead
 function scheduleLineKey(schedule) {
   const from = (schedule.origin?.nameGreek || schedule.origin?.name || '').trim();
   const to = (schedule.destination?.nameGreek || schedule.destination?.name || '').trim();
   return [from, to].sort((a, b) => a.localeCompare(b, 'el')).join('|');
 }
 
-// orders a lines two endpoints to read the way the corridors own name does
-// (eg corridor "Peiraias - Aerodromio" puts a Liosia/Aerodromio line as
-// "Anw Liosia - Aerodromio", not the reverse) instead of whichever order
-// the first schedule we happened to see it in used
+// orders a line's endpoints to match the corridor's own name direction,
+// not whichever order the first schedule we saw happened to use
 function orderLineEndpoints(corridorId, from, to) {
   const corridor = timetableCorridors && timetableCorridors.find((c) => c.id === corridorId);
   if (corridor && corridor.name) {
@@ -155,9 +137,8 @@ function startTimetableTelemetryStream() {
   };
 }
 
-// this stream never closes on its own - leaving it open after the board is
-// closed keeps the connection (and the servers work sending updates) alive
-// for no reason, so it must be closed explicitly here
+// this stream never closes on its own - must be closed explicitly or it
+// keeps the connection (and the server's work) alive for no reason
 function stopTimetableTelemetryStream() {
   if (timetableEventSource) {
     timetableEventSource.close();
@@ -211,10 +192,8 @@ function renderDelayChip(delay) {
   return '<span class="train-delay-chip placeholder"></span>';
 }
 
-// crossed-out scheduled departure with the real (delay-adjusted) time right
-// below it, same convention as .train-time-scheduled/.train-time-actual
-// used for the departure/arrival legs elsewhere in the app - only worth
-// showing once there actually is a delay to explain
+// crossed-out scheduled time + real delay-adjusted time below, same
+// convention as .train-time-scheduled/.train-time-actual elsewhere - only when there's a delay
 function renderTimetableTimeBlock(delay, scheduledIso) {
   if (!delay) return '';
   const actualIso = new Date(new Date(scheduledIso).getTime() + delay * 60000).toISOString();
@@ -224,9 +203,8 @@ function renderTimetableTimeBlock(delay, scheduledIso) {
   </div>`;
 }
 
-// same live dot + locate icon as the suburban station panels own train
-// rows (js/4-metro-suburban.js) rather than a bespoke one, so a "this
-// trains live" indicator looks identical everywhere in the app
+// same live dot + locate icon as the suburban station panel rows, so the
+// "this train's live" indicator looks identical everywhere
 function renderLiveDotHtml() {
   return '<span class="train-live-dot" title="Live on map"></span>';
 }
@@ -248,12 +226,8 @@ function wireLocateButton(btn) {
   });
 }
 
-// where a train actually is right now, shared by the compact trip dots and
-// the expanded route timeline so the two never disagree. the api's own
-// nextStationId already points one stop ahead even before a train has left
-// the station its still sitting in, which would wrongly mark that station
-// as "passed" - while genuinely stopped this finds which station it
-// actually is by gps instead and treats that one as current
+// shared by the compact trip dots and expanded timeline so they never
+// disagree - nextStationId points ahead too early, so while stopped this uses gps instead
 function computeTimetableProgress(schedule, telemetry) {
   const stations = schedule.routeStations || [];
   const nextStationId = telemetry.nextStationId;
@@ -293,11 +267,8 @@ function computeTimetableProgress(schedule, telemetry) {
   return { stations, passedUntilIndex: -1, currentIdx: 0, isStopped: false, stoppedName: null };
 }
 
-// a compact version of the same "next stop" logic the expanded route
-// timeline uses - one dot per station, filled up to how far along the
-// route the train really is, plus a caption naming the part its doing
-// (or, while genuinely stopped, the real station its gps says its next to
-// rather than whatever the api last claimed was next)
+// compact version of the expanded timeline's "next stop" logic - one dot
+// per station, plus a caption naming what its doing (or its real gps stop if stopped)
 function renderTimetableTripProgress(schedule, telemetry) {
   const { stations, passedUntilIndex, currentIdx, isStopped, stoppedName } = computeTimetableProgress(schedule, telemetry);
   if (stations.length === 0) return '';
@@ -313,12 +284,8 @@ function renderTimetableTripProgress(schedule, telemetry) {
     if (nextStop && nextName && currentIdx > passedUntilIndex) caption = `Currently doing the part: ${currentName} → ${nextName}`;
   }
 
-  // while moving, currentIdx is the station not yet reached - it must stay
-  // gray, not green, or the row reads as having already done a stop it
-  // hasnt gotten to yet. the pulsing "current" dot belongs on
-  // passedUntilIndex instead (the last one actually reached). while
-  // stopped this doesnt apply since currentIdx there is already the real
-  // gps-confirmed position, not a not-yet-reached target
+  // while moving, currentIdx is not-yet-reached and must stay gray - the
+  // pulsing dot belongs on passedUntilIndex, the last stop actually reached
   const dots = stations.map((stop, idx) => {
     let state = 'upcoming';
     if (isStopped) {
@@ -331,16 +298,13 @@ function renderTimetableTripProgress(schedule, telemetry) {
     return `<div class="timetable-trip-dot ${state}"></div>`;
   }).join('');
 
-  // the dots are evenly spaced by index (space-between), so the fill has
-  // to end at whichever dot is actually pulsing green, not the
-  // not-yet-reached one
+  // dots are evenly spaced by index - fill ends at whichever dot is
+  // actually pulsing green, not the not-yet-reached one
   const greenUpToIdx = isStopped ? currentIdx : passedUntilIndex;
   const fillPct = stations.length > 1 && greenUpToIdx >= 0 ? (greenUpToIdx / (stations.length - 1)) * 100 : 0;
 
-  // same moving-between-two-stops chase as the live sheets own compact
-  // progress line (.train-progress-track) - only while actually moving,
-  // and only across the single segment between the pulsing dot and the
-  // first station not yet reached
+  // same chase as the live sheet's .train-progress-track - only while moving,
+  // only across the segment between the pulsing dot and the next stop
   let chaseHtml = '';
   if (!isStopped && passedUntilIndex >= 0 && currentIdx > passedUntilIndex) {
     const left = (passedUntilIndex / (stations.length - 1)) * 100;
@@ -360,9 +324,8 @@ function renderTimetableTripProgress(schedule, telemetry) {
   `;
 }
 
-// jumps the map to a live trains current position and opens its own live
-// sheet - reuses the same marker/position maps the always-on live map
-// stream already maintains rather than fetching anything new
+// jumps to a live train's position and opens its sheet - reuses the marker/
+// position maps the live map stream already maintains, fetches nothing new
 function locateTimetableTrainOnMap(scheduleId) {
   const marker = liveTrainMarkersByScheduleId.get(scheduleId);
   const pos = liveTrainPositionsByScheduleId.get(scheduleId);
@@ -410,29 +373,24 @@ function renderTimetableRouteTimeline(schedule) {
   const telemetry = timetableTelemetryByScheduleId.get(schedule._id);
   const delay = telemetry ? (telemetry.delay || 0) : (schedule.delay || 0);
 
-  // shares the exact same current-station logic as the compact trip dots
-  // (computeTimetableProgress) so the two never disagree about where the
-  // train is; without telemetry theres nothing live to go on so it just
-  // shows the plain scheduled route
+  // shares computeTimetableProgress with the compact trip dots so they
+  // never disagree; no telemetry just falls back to the plain scheduled route
   const routeStations = schedule.routeStations || [];
   const { stations, passedUntilIndex, currentIdx, isStopped } = telemetry
     ? computeTimetableProgress(schedule, telemetry)
-    // no live telemetry at all - nothing to highlight as "current", just
-    // show every stop as passed if the trip already finished or plain
-    // scheduled otherwise
+    // no telemetry, nothing to highlight as "current" - all passed if
+    // finished, plain scheduled otherwise
     : { stations: routeStations, passedUntilIndex: schedule.status === 'completed' ? routeStations.length - 1 : -1, currentIdx: -1, isStopped: false };
 
-  // schedule-board only ever gives one overall delay figure, not a real
-  // actual time per stop, so the trains current delay is shown against
-  // every stop as the best estimate we have rather than left blank
+  // schedule-board only gives one overall delay figure, no per-stop actual
+  // time - shown against every stop as the best estimate we have
   const delayChip = delay !== 0 ? renderDelayChip(delay) : '';
   const rows = stations.map((stop, idx) => {
     const isCurrent = idx === currentIdx;
     const passed = idx <= passedUntilIndex;
     const time = stop.scheduledArrival || stop.scheduledDeparture;
-    // same chase segment as the live sheets own full route view
-    // (isRouteChasingSegment) - the line right after the last passed stop,
-    // leading into the first one thats not passed yet, only while moving
+    // same chase as the live sheet's isRouteChasingSegment - the line right
+    // after the last passed stop, only while moving
     const isChasing = !isStopped && idx === passedUntilIndex && idx + 1 < stations.length;
     return `
       <div class="route-stop state-${passed ? 'passed' : 'upcoming'}${isCurrent ? ' is-this-station' : ''}">
@@ -469,11 +427,8 @@ function updateTimetableRowLive(scheduleId, telemetry) {
   const newDelay = telemetry.delay || 0;
   const delaySlot = row.querySelector('.timetable-row-top > .train-delay-chip');
 
-  // the position stream (which owns liveTrainMarkersByScheduleId) runs
-  // independently of this telemetry stream, so a marker can appear after
-  // the row was first rendered - piggyback on this tick to add the live
-  // dot + locate button retroactively, in the same slot a fresh render
-  // would have put them in (right before the delay chip)
+  // the position stream runs independently, so a marker can appear after
+  // the row rendered - piggyback here to add the live dot/locate button retroactively
   if (delaySlot && !row.querySelector('.train-locate-btn') && liveTrainMarkersByScheduleId.has(scheduleId)) {
     delaySlot.insertAdjacentHTML('beforebegin', renderTimetableLiveActionsHtml(scheduleId));
     wireLocateButton(row.querySelector('.train-locate-btn'));
