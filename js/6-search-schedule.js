@@ -149,7 +149,10 @@ function estimateBusTimelineIndex(bus, sortedStops) {
   return bestIdx;
 }
 
-function renderBusMarkersOnTimeline(container, buses, sortedStops) {
+function renderBusMarkersOnTimeline(detailsEl, buses, sortedStops) {
+  const countEl = detailsEl.querySelector('.route-bus-count');
+  if (countEl) countEl.textContent = `${buses.length} live bus${buses.length === 1 ? '' : 'es'} on the route`;
+  const container = detailsEl.querySelector('.route-timeline');
   container.querySelectorAll('.route-bus-marker').forEach((el) => el.remove());
   const stopEls = container.querySelectorAll('.route-stop');
   if (!stopEls.length) return;
@@ -177,12 +180,12 @@ function stopRouteStopsBusRefresh() {
   }
 }
 
-function startRouteStopsBusRefresh(container, routeCode, sortedStops) {
+function startRouteStopsBusRefresh(detailsEl, routeCode, sortedStops) {
   stopRouteStopsBusRefresh();
   const tick = async () => {
     try {
       const buses = await fetchRouteBusLocationsForTimeline(routeCode);
-      renderBusMarkersOnTimeline(container, buses, sortedStops);
+      renderBusMarkersOnTimeline(detailsEl, buses, sortedStops);
     } catch (err) {
       console.error('Failed to load route bus locations:', err);
     }
@@ -218,18 +221,18 @@ async function toggleScheduleRouteStops(item, routeCode) {
       const stops = await fetchRouteStops(routeCode);
       if (!stops.length) throw new Error('empty');
       const sortedStops = [...stops].sort((a, b) => parseInt(a.RouteStopOrder, 10) - parseInt(b.RouteStopOrder, 10));
-      detailsEl.innerHTML = renderRouteStopsTimeline(sortedStops);
+      detailsEl.innerHTML = `<div class="route-bus-count"></div>` + renderRouteStopsTimeline(sortedStops);
       detailsEl.dataset.loaded = "1";
       detailsEl._sortedStops = sortedStops;
       wireTimelineStopClicks(detailsEl, sortedStops);
-      startRouteStopsBusRefresh(detailsEl.querySelector('.route-timeline'), routeCode, sortedStops);
+      startRouteStopsBusRefresh(detailsEl, routeCode, sortedStops);
     } catch (err) {
       console.error('Failed to load route stops:', err);
       detailsEl.innerHTML = `<div class="info-message">Could not load stops.</div>`;
     }
   } else if (detailsEl._sortedStops) {
     // already loaded from a previous expand - just resume the live bus refresh
-    startRouteStopsBusRefresh(detailsEl.querySelector('.route-timeline'), routeCode, detailsEl._sortedStops);
+    startRouteStopsBusRefresh(detailsEl, routeCode, detailsEl._sortedStops);
   }
 }
 

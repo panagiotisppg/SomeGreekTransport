@@ -270,6 +270,10 @@ input[type="text"] {
 
 #search-input {
     flex-grow: 1;
+    /* without this a flex item wont shrink past its content's own intrinsic
+       min-width, which on narrow screens pushed the toggle switch after it
+       off the right edge */
+    min-width: 0;
     padding: 11px 16px;
     background: var(--surface);
     backdrop-filter: var(--blur);
@@ -277,7 +281,9 @@ input[type="text"] {
     border: 1px solid var(--border);
     border-radius: var(--r-md);
     box-shadow: var(--shadow-sm);
-    font-size: 14px;
+    /* below 16px ios safari auto-zooms in on focus and the page can be left
+       looking shifted after - this is the min size that avoids it */
+    font-size: 16px;
     font-family: var(--font);
     font-weight: 500;
     color: var(--text-1);
@@ -1712,6 +1718,13 @@ input[type="text"] {
     overflow-y: auto;
 }
 
+.route-bus-count {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-3);
+    padding-bottom: 8px;
+}
+
 .route-timeline { padding-left: 2px; position: relative; }
 
 .schedule-route-stops-details .route-stop { cursor: pointer; }
@@ -2276,7 +2289,9 @@ input[type="text"] {
     width: 100%;
     box-sizing: border-box;
     padding: 8px 12px;
-    font-size: 14px;
+    /* below 16px ios safari auto-zooms in on focus and the page can be left
+       looking shifted after - this is the min size that avoids it */
+    font-size: 16px;
     font-family: var(--font);
     color: var(--text-1);
     background: var(--surface-row);
