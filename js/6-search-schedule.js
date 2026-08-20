@@ -90,17 +90,165 @@ function populateScheduleTimes(container, timesArray, timeKey) {
   }
 }
 
+// only one route's stop list open at a time - reset whenever a fresh line is opened
+let expandedScheduleRouteItem = null;
+let routeStopsBusRefreshId = null;
+
+async function fetchRouteStops(routeCode) {
+  const url = `${PROXY_URL}${encodeURIComponent(`https://telematics.oasa.gr/api/?act=webGetStops&p1=${routeCode}`)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`route stops fetch failed: ${res.status}`);
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+async function fetchRouteBusLocationsForTimeline(routeCode) {
+  const url = `${PROXY_URL}${encodeURIComponent(`https://telematics.oasa.gr/api/?act=getBusLocation&p1=${routeCode}&t=${Date.now()}`)}`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((b) => ({ vehNo: b.VEH_NO, lat: parseFloat(b.CS_LAT), lng: parseFloat(b.CS_LNG) }))
+    .filter((b) => b.lat && b.lng);
+}
+
+function renderRouteStopsTimeline(stops) {
+  const sorted = [...stops].sort((a, b) => parseInt(a.RouteStopOrder, 10) - parseInt(b.RouteStopOrder, 10));
+  const rows = sorted.map((stop) => `<div class="route-stop" data-stop-code="${stop.StopCode}"><div class="route-stop-track"><div class="route-stop-dot"></div></div><div class="route-stop-body"><span class="route-stop-name">${stop.StopDescrEng || stop.StopDescr}</span></div></div>`).join('');
+  return `<div class="route-timeline">${rows}</div>`;
+}
+
+// opens the real stop info panel for a stop tapped in this timeline, same
+// lookup-by-StopCode fallback pattern as a plotted-route stop marker
+function openTimelineStop(stop) {
+  openStopInfoFromPlottedMarker(stop, parseFloat(stop.StopLng), parseFloat(stop.StopLat));
+}
+
+function wireTimelineStopClicks(container, sortedStops) {
+  container.querySelectorAll('.route-stop').forEach((el, i) => {
+    el.addEventListener('click', () => openTimelineStop(sortedStops[i]));
+  });
+}
+
+// nearest stop by straight-line distance, then blends toward whichever
+// neighbor is second-closest to get a fractional position between the two
+function estimateBusTimelineIndex(bus, sortedStops) {
+  const dists = sortedStops.map((s) => distanceMeters(bus, { lat: parseFloat(s.StopLat), lng: parseFloat(s.StopLng) }));
+  let bestIdx = 0;
+  dists.forEach((d, i) => { if (d < dists[bestIdx]) bestIdx = i; });
+  const prevDist = bestIdx > 0 ? dists[bestIdx - 1] : Infinity;
+  const nextDist = bestIdx < dists.length - 1 ? dists[bestIdx + 1] : Infinity;
+  if (nextDist <= prevDist && bestIdx < dists.length - 1) {
+    const d1 = dists[bestIdx], d2 = dists[bestIdx + 1];
+    return bestIdx + d1 / (d1 + d2 || 1);
+  } else if (bestIdx > 0) {
+    const d1 = dists[bestIdx - 1], d2 = dists[bestIdx];
+    return (bestIdx - 1) + d1 / (d1 + d2 || 1);
+  }
+  return bestIdx;
+}
+
+function renderBusMarkersOnTimeline(container, buses, sortedStops) {
+  container.querySelectorAll('.route-bus-marker').forEach((el) => el.remove());
+  const stopEls = container.querySelectorAll('.route-stop');
+  if (!stopEls.length) return;
+  buses.forEach((bus) => {
+    const idx = estimateBusTimelineIndex(bus, sortedStops);
+    const lowerEl = stopEls[Math.min(Math.floor(idx), stopEls.length - 1)];
+    const upperEl = stopEls[Math.min(Math.floor(idx) + 1, stopEls.length - 1)];
+    const frac = idx - Math.floor(idx);
+    const top = lowerEl.offsetTop + (upperEl.offsetTop - lowerEl.offsetTop) * frac + 7;
+    const marker = document.createElement('div');
+    marker.className = 'route-bus-marker';
+    marker.style.top = `${top}px`;
+    marker.title = `Bus ${bus.vehNo}`;
+    marker.innerHTML = busGlyphIconSvg;
+    // prepended, not appended - keeps the last .route-stop as the
+    // container's actual last-child so its connector line stays hidden
+    container.prepend(marker);
+  });
+}
+
+function stopRouteStopsBusRefresh() {
+  if (routeStopsBusRefreshId) {
+    clearInterval(routeStopsBusRefreshId);
+    routeStopsBusRefreshId = null;
+  }
+}
+
+function startRouteStopsBusRefresh(container, routeCode, sortedStops) {
+  stopRouteStopsBusRefresh();
+  const tick = async () => {
+    try {
+      const buses = await fetchRouteBusLocationsForTimeline(routeCode);
+      renderBusMarkersOnTimeline(container, buses, sortedStops);
+    } catch (err) {
+      console.error('Failed to load route bus locations:', err);
+    }
+  };
+  tick();
+  routeStopsBusRefreshId = setInterval(tick, 7000);
+}
+
+function collapseScheduleRouteItem(item) {
+  item.classList.remove('expanded');
+  item.querySelector('.schedule-route-expand-btn').classList.remove('expanded');
+  if (expandedScheduleRouteItem === item) {
+    expandedScheduleRouteItem = null;
+    stopRouteStopsBusRefresh();
+  }
+}
+
+async function toggleScheduleRouteStops(item, routeCode) {
+  if (expandedScheduleRouteItem && expandedScheduleRouteItem !== item) {
+    collapseScheduleRouteItem(expandedScheduleRouteItem);
+  }
+  if (item.classList.contains('expanded')) {
+    collapseScheduleRouteItem(item);
+    return;
+  }
+  const detailsEl = item.querySelector('.schedule-route-stops-details');
+  item.classList.add('expanded');
+  item.querySelector('.schedule-route-expand-btn').classList.add('expanded');
+  expandedScheduleRouteItem = item;
+  if (!detailsEl.dataset.loaded) {
+    detailsEl.innerHTML = `<div class="info-message">Loading stops...</div>`;
+    try {
+      const stops = await fetchRouteStops(routeCode);
+      if (!stops.length) throw new Error('empty');
+      const sortedStops = [...stops].sort((a, b) => parseInt(a.RouteStopOrder, 10) - parseInt(b.RouteStopOrder, 10));
+      detailsEl.innerHTML = renderRouteStopsTimeline(sortedStops);
+      detailsEl.dataset.loaded = "1";
+      detailsEl._sortedStops = sortedStops;
+      wireTimelineStopClicks(detailsEl, sortedStops);
+      startRouteStopsBusRefresh(detailsEl.querySelector('.route-timeline'), routeCode, sortedStops);
+    } catch (err) {
+      console.error('Failed to load route stops:', err);
+      detailsEl.innerHTML = `<div class="info-message">Could not load stops.</div>`;
+    }
+  } else if (detailsEl._sortedStops) {
+    // already loaded from a previous expand - just resume the live bus refresh
+    startRouteStopsBusRefresh(detailsEl.querySelector('.route-timeline'), routeCode, detailsEl._sortedStops);
+  }
+}
+
 function populateScheduleRoutes(routesArray, lineID) {
   scheduleRoutesList.innerHTML = "";
+  expandedScheduleRouteItem = null;
+  stopRouteStopsBusRefresh();
   if (!routesArray || routesArray.length === 0) {
     scheduleRoutesList.innerHTML = `<div class="info-message">No routes found.</div>`;
     return;
   }
   routesArray.forEach((route) => {
-    const routeRow = document.createElement("div");
-    routeRow.className = "schedule-route-row";
-    routeRow.innerHTML = `<div class="line-id-pill">${lineID}</div><div class="schedule-route-descr">${route.route_descr_eng}</div><button class="plot-route-icon-btn schedule-plot-btn visible" data-route-code="${route.route_code}">${plotRouteIconSvg}</button>`;
-    routeRow.querySelector(".schedule-plot-btn").addEventListener("click", () => {
+    const routeItem = document.createElement("div");
+    routeItem.className = "schedule-route-item";
+    routeItem.innerHTML = `<div class="schedule-route-row"><button class="schedule-route-expand-btn" title="Show stops">${chevronDownIconSvg}</button><div class="line-id-pill">${lineID}</div><div class="schedule-route-descr">${route.route_descr_eng}</div><button class="plot-route-icon-btn schedule-plot-btn visible" data-route-code="${route.route_code}">${plotRouteIconSvg}</button></div><div class="schedule-route-stops-details"></div>`;
+    routeItem.querySelector(".schedule-route-expand-btn").addEventListener("click", () => {
+      toggleScheduleRouteStops(routeItem, route.route_code);
+    });
+    routeItem.querySelector(".schedule-plot-btn").addEventListener("click", () => {
       const routeCodeToCheck = route.route_code;
       const routeName = `${lineID} ${route.route_descr_eng}`;
       const existingRoute = plottedRoutes.find(r => r.routeCode === routeCodeToCheck);
@@ -116,7 +264,7 @@ function populateScheduleRoutes(routesArray, lineID) {
       }
       plotAnimatedRoute(route.route_code, lineID, route.route_descr_eng);
     });
-    scheduleRoutesList.appendChild(routeRow);
+    scheduleRoutesList.appendChild(routeItem);
   });
   // update state immediately to gray out buttons if needed
   updateArrivalsUIState();
@@ -334,6 +482,8 @@ scheduleClose.addEventListener("click", () => {
   schedulePanel.classList.remove("visible");
   clearDemotedPanels();
   clearDataNeeded('buses');
+  stopRouteStopsBusRefresh();
+  expandedScheduleRouteItem = null;
 });
 
 function updateButtonPosition() {

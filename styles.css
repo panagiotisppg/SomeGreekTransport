@@ -1004,15 +1004,56 @@ input[type="text"] {
     gap: 6px;
 }
 
-.schedule-route-row {
-    display: flex;
-    align-items: center;
+.schedule-route-item {
     background: var(--surface-row);
     border: 1px solid var(--border);
     border-radius: var(--r-md);
+}
+
+.schedule-route-row {
+    display: flex;
+    align-items: center;
     padding: 9px 10px;
     min-height: 40px;
     transition: background-color 0.15s;
+}
+
+.schedule-route-expand-btn {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    margin-right: 4px;
+    color: var(--text-3);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.route-expand-svg {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.25s ease;
+}
+
+.schedule-route-expand-btn.expanded .route-expand-svg { transform: rotate(180deg); }
+
+.schedule-route-stops-details {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    padding: 0 12px;
+    transition: max-height 0.3s ease, opacity 0.25s ease, padding 0.3s ease;
+}
+
+.schedule-route-item.expanded .schedule-route-stops-details {
+    max-height: 400px;
+    overflow-y: auto;
+    opacity: 1;
+    padding: 4px 12px 12px;
 }
 
 .schedule-route-descr {
@@ -1671,7 +1712,31 @@ input[type="text"] {
     overflow-y: auto;
 }
 
-.route-timeline { padding-left: 2px; }
+.route-timeline { padding-left: 2px; position: relative; }
+
+.schedule-route-stops-details .route-stop { cursor: pointer; }
+
+/* positioned against the timeline's own left edge to line up with the dot
+   column (.route-stop-track is 10px wide, padding-left 2px -> center ~7px) */
+.route-bus-marker {
+    position: absolute;
+    left: 7px;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--accent-2);
+    color: #fff;
+    border: 2px solid var(--surface-hi);
+    box-shadow: var(--shadow-xs);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    transition: top 0.6s ease;
+}
+
+.route-bus-svg { width: 11px; height: 11px; }
 
 .route-stop {
     display: flex;
