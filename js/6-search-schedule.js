@@ -462,6 +462,9 @@ function renderSearchResults(results, type) {
 function clearAndHideSearch() {
   searchInput.value = "";
   searchResultsContainer.classList.remove("visible");
+  // a tapped result is rarely itself focusable, so the input keeps focus
+  // and ios keeps the keyboard/zoom-in state around unless told to let go
+  searchInput.blur();
 }
 
 // listeners
