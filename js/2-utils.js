@@ -1,4 +1,4 @@
-// ui helpers
+// ui helpers.
 function updateProgressBar(p) {
   if (progressBar) progressBar.style.width = p + "%";
 }
