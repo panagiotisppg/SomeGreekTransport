@@ -84,8 +84,9 @@
     <!-- maplibre gl js library -->
     <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4/dist/maplibre-gl.css" />
     <!-- custom css -->
-    <link rel="stylesheet" href="styles.css?v=35" />
+    <link rel="stylesheet" href="styles.css?v=38" />
     <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js"></script>
 </head>
 
 <body>
@@ -310,6 +311,20 @@
         <div id="live-train-header">
             <span id="live-train-header-title"></span>
             <span id="live-train-close">×</span>
+        </div>
+        <!-- camera feed lives inside the sheet itself, not a separate window -->
+        <div id="live-train-camera" hidden>
+            <div id="live-train-camera-header">
+                <div id="live-train-camera-title">
+                    <span id="live-train-camera-route"></span>
+                    <span id="live-train-camera-label">Live Camera</span>
+                </div>
+                <span id="live-train-camera-close">×</span>
+            </div>
+            <!-- controls/fullscreen/PiP are toggled from js based on viewport
+                 width, see applyTrainCameraControlPolicy -->
+            <video id="train-camera-video" autoplay muted playsinline></video>
+            <div id="train-camera-status"></div>
         </div>
         <div id="live-train-content"></div>
     </div>
@@ -556,16 +571,16 @@
 
     <!-- custom javascript files split into logical modules -->
     <div id="delay-tooltip"></div>
-    <script src="js/1-globals.js?v=35"></script>
-    <script src="js/2-utils.js?v=35"></script>
-    <script src="js/3-map-engine.js?v=35"></script>
-    <script src="js/4-metro-suburban.js?v=35"></script>
-    <script src="js/5-bus-logic.js?v=35"></script>
-    <script src="js/6-search-schedule.js?v=35"></script>
-    <script src="js/7-main.js?v=35"></script>
-    <script src="js/8-train-timetable.js?v=35"></script>
-    <script src="js/9-cities.js?v=35"></script>
-    <script src="js/10-data-usage.js?v=35"></script>
+    <script src="js/1-globals.js?v=38"></script>
+    <script src="js/2-utils.js?v=38"></script>
+    <script src="js/3-map-engine.js?v=38"></script>
+    <script src="js/4-metro-suburban.js?v=38"></script>
+    <script src="js/5-bus-logic.js?v=38"></script>
+    <script src="js/6-search-schedule.js?v=38"></script>
+    <script src="js/7-main.js?v=38"></script>
+    <script src="js/8-train-timetable.js?v=38"></script>
+    <script src="js/9-cities.js?v=38"></script>
+    <script src="js/10-data-usage.js?v=38"></script>
 
     <script>
       document.getElementById('theme-toggle').addEventListener('click', function() {

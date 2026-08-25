@@ -46,6 +46,11 @@ const liveTrainPanel = document.getElementById("live-train-panel");
 const liveTrainContent = document.getElementById("live-train-content");
 const liveTrainClose = document.getElementById("live-train-close");
 const liveTrainHeaderTitle = document.getElementById("live-train-header-title");
+const liveTrainCameraSection = document.getElementById("live-train-camera");
+const liveTrainCameraRoute = document.getElementById("live-train-camera-route");
+const liveTrainCameraClose = document.getElementById("live-train-camera-close");
+const trainCameraVideo = document.getElementById("train-camera-video");
+const trainCameraStatus = document.getElementById("train-camera-status");
 const layerControlBtn = document.getElementById('layer-control-button');
 const compassButton = document.getElementById('compass-button');
 const compassIcon = document.getElementById('compass-icon');
@@ -250,5 +255,7 @@ const chevronDownIconSvg = `<svg class="route-expand-svg" viewBox="0 0 24 24" fi
 // plain silhouette, not the colored oasa-style badge with tires/line-id -
 // lighter weight for a small marker that just needs to read as "a bus"
 const busGlyphIconSvg = `<svg class="route-bus-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="11" rx="2"/><path d="M4 12h16"/><circle cx="8" cy="19" r="1.3" fill="currentColor" stroke="none"/><circle cx="16" cy="19" r="1.3" fill="currentColor" stroke="none"/></svg>`;
+
+const cameraGlyphIconSvg = `<svg class="train-camera-btn-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 8l4.5-2.5a1 1 0 0 1 1.5.87v11.26a1 1 0 0 1-1.5.87L15 16"/><rect x="2" y="6" width="13" height="12" rx="2"/></svg>`;
 const accessibilityIconSvg = `<svg class="access-icon-svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><rect x="6.5" y="6" width="8" height="8" rx="1"/><circle cx="8.5" cy="15" r="1"/><circle cx="12.5" cy="15" r="1"/><path d="M 22 14 H 16 V 16"/></g></svg>`;
 const smartStopIconSvg = `<svg class="access-icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.5"/><g fill="currentColor"><circle cx="15.5" cy="7.8" r="1.5"/><rect x="7" y="9" width="10" height="5" rx="1"/><rect x="14.9" y="14" width="2" height="4"/></g></svg>`;

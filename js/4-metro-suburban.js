@@ -1362,6 +1362,38 @@ function renderLiveTrainTooltip(pos) {
     </div>`;
 }
 
+// camera-stream availability per trainId, checked once and cached so the
+// live button doesn't need a fresh network round trip on every refresh tick
+const trainCameraStreamCache = new Map();
+const trainCameraStreamChecksInFlight = new Map();
+
+async function checkTrainCameraStream(trainId) {
+  if (trainCameraStreamCache.has(trainId)) return trainCameraStreamCache.get(trainId);
+  if (trainCameraStreamChecksInFlight.has(trainId)) return trainCameraStreamChecksInFlight.get(trainId);
+
+  const promise = (async () => {
+    const url = `${PROXY_URL}${encodeURIComponent(`https://railway.gov.gr/api/public/trains/${trainId}/stream`)}`;
+    let result = null;
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.hls && data.hls.isLive && data.hls.playlistUrl) {
+          result = { playlistUrl: data.hls.playlistUrl };
+        }
+      }
+    } catch (err) {
+      result = null;
+    }
+    trainCameraStreamCache.set(trainId, result);
+    trainCameraStreamChecksInFlight.delete(trainId);
+    return result;
+  })();
+
+  trainCameraStreamChecksInFlight.set(trainId, promise);
+  return promise;
+}
+
 // same card style as the station panel rows but without the title row
 // since that now lives in the sheets own header via renderlivetraintitle
 function renderLiveTrainRow(pos) {
@@ -1430,12 +1462,21 @@ function renderLiveTrainRow(pos) {
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>` : '';
 
+  // only known-live cameras get the button - the check is async (see
+  // checkTrainCameraStream) so this only lights up once that resolves and
+  // this row gets redrawn, not on the very first paint of the sheet
+  const cameraInfo = pos.trainId ? trainCameraStreamCache.get(pos.trainId) : null;
+  const cameraButton = cameraInfo ? `
+        <button class="train-camera-live-btn" data-train-id="${pos.trainId}" title="Watch live camera">
+          ${cameraGlyphIconSvg}LIVE
+        </button>` : '';
+
   return `
     <div class="train-row" data-schedule-id="${scheduleId || ''}">
       <div class="train-row-top">
         ${serviceTypeBadge}
         <span class="train-number-pill" style="background:${color}">${pos.trainNumber || pos.name || ''}</span>
-        <div class="train-row-actions">${toggleButton}</div>
+        <div class="train-row-actions">${cameraButton}${toggleButton}</div>
       </div>
       ${timesRow}
       ${progressSection}
@@ -1497,6 +1538,15 @@ function openLiveTrainSheet(id) {
   if (pos.scheduleId) ensureTrainScheduleCached(pos.scheduleId);
   if (previousId && previousId !== id) refreshLiveTrainMarkerIcon(previousId);
   refreshLiveTrainMarkerIcon(id);
+
+  // switching to a different train invalidates whatever camera feed was
+  // open, since it belonged to the previous sheet's train
+  if (previousId !== id) closeTrainCameraPanel();
+  if (pos.trainId && !trainCameraStreamCache.has(pos.trainId)) {
+    checkTrainCameraStream(pos.trainId).then(() => {
+      if (currentLiveTrainSheetId === id) updateLiveTrainSheetIfOpen(id, liveTrainLatestPositions.get(id));
+    });
+  }
 }
 
 function closeLiveTrainSheet() {
@@ -1506,6 +1556,7 @@ function closeLiveTrainSheet() {
   liveTrainHeaderTitle.innerHTML = '';
   undemotePanelsBehindLiveTrainSheet();
   if (previousId) refreshLiveTrainMarkerIcon(previousId);
+  closeTrainCameraPanel();
 }
 
 // every section except train-route-details gets replaced fresh each tick
@@ -1555,8 +1606,85 @@ function updateLiveTrainSheetIfOpen(id, pos) {
   }
 }
 
+// embedded inside the live train sheet itself (not a floating panel of its
+// own) so it always reads as part of that sheet
+let trainCameraHls = null;
+
+function teardownTrainCameraVideo() {
+  if (trainCameraHls) {
+    trainCameraHls.destroy();
+    trainCameraHls = null;
+  }
+  trainCameraVideo.pause();
+  trainCameraVideo.removeAttribute('src');
+  trainCameraVideo.load();
+}
+
+// desktop gets the browser's normal video controls (play/pause/fullscreen);
+// mobile keeps them stripped out since there's no room to spare there and
+// a fullscreened video would cover the sheet it's meant to stay part of
+function applyTrainCameraControlPolicy() {
+  const isDesktop = window.innerWidth > 768;
+  trainCameraVideo.controls = isDesktop;
+  trainCameraVideo.disablePictureInPicture = !isDesktop;
+  trainCameraVideo.disableRemotePlayback = !isDesktop;
+  if (isDesktop) {
+    trainCameraVideo.removeAttribute('controlsList');
+    trainCameraVideo.oncontextmenu = null;
+  } else {
+    trainCameraVideo.setAttribute('controlsList', 'nofullscreen nodownload noremoteplayback');
+    trainCameraVideo.oncontextmenu = () => false;
+  }
+}
+
+function openTrainCameraPanel(trainId, pos) {
+  const info = trainCameraStreamCache.get(trainId);
+  if (!info) return;
+  liveTrainCameraRoute.innerHTML = renderLiveTrainTitle(pos);
+  trainCameraStatus.textContent = '';
+  trainCameraVideo.hidden = false;
+  liveTrainCameraSection.hidden = false;
+  liveTrainPanel.classList.add('camera-open');
+  applyTrainCameraControlPolicy();
+  teardownTrainCameraVideo();
+
+  // safari plays hls natively - everywhere else needs hls.js to demux it
+  if (trainCameraVideo.canPlayType('application/vnd.apple.mpegurl')) {
+    trainCameraVideo.src = info.playlistUrl;
+  } else if (typeof Hls !== 'undefined' && Hls.isSupported()) {
+    trainCameraHls = new Hls();
+    trainCameraHls.loadSource(info.playlistUrl);
+    trainCameraHls.attachMedia(trainCameraVideo);
+    trainCameraHls.on(Hls.Events.ERROR, (event, data) => {
+      if (data.fatal) {
+        trainCameraVideo.hidden = true;
+        trainCameraStatus.textContent = 'Could not load the live camera feed.';
+      }
+    });
+  } else {
+    trainCameraVideo.hidden = true;
+    trainCameraStatus.textContent = 'Live video is not supported on this browser.';
+    return;
+  }
+  trainCameraVideo.play().catch(() => {});
+}
+
+function closeTrainCameraPanel() {
+  liveTrainCameraSection.hidden = true;
+  liveTrainPanel.classList.remove('camera-open');
+  teardownTrainCameraVideo();
+}
+
+liveTrainCameraClose.addEventListener('click', closeTrainCameraPanel);
+
 // the sheet is one persistent element so this is wired once not per train
 liveTrainContent.addEventListener('click', async (e) => {
+  const cameraBtn = e.target.closest('.train-camera-live-btn');
+  if (cameraBtn) {
+    const pos = currentLiveTrainSheetId ? liveTrainLatestPositions.get(currentLiveTrainSheetId) : null;
+    if (pos) openTrainCameraPanel(cameraBtn.dataset.trainId, pos);
+    return;
+  }
   const routeBtn = e.target.closest('.train-route-toggle');
   if (!routeBtn) return;
   const details = liveTrainContent.querySelector('.train-route-details');
