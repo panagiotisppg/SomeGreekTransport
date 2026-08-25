@@ -177,7 +177,7 @@ function updateHighlightedStops() {
              if (h === -1) h = 0;
              const arrowEl = createHeadingIcon(h);
              if (arrowEl) {
-                 const arrowMarker = new maplibregl.Marker({ element: arrowEl }).setLngLat([lng, lat]).addTo(map);
+                 const arrowMarker = new maplibregl.Marker({ element: arrowEl, rotationAlignment: 'map' }).setLngLat([lng, lat]).addTo(map);
                  plottedStopMarkers.push({ marker: arrowMarker, isArrow: true });
              }
         }
@@ -674,7 +674,7 @@ async function showStopInfo(stopProperties) {
           const latlng = selectedStopMarker.getLngLat();
           const bigArrowIcon = createHeadingIcon(stopProperties.heading, 65);
           if (bigArrowIcon) {
-              selectedHeadingMarker = new maplibregl.Marker({ element: bigArrowIcon }).setLngLat(latlng).addTo(map);
+              selectedHeadingMarker = new maplibregl.Marker({ element: bigArrowIcon, rotationAlignment: 'map' }).setLngLat(latlng).addTo(map);
           }
       }
   }

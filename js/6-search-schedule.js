@@ -131,12 +131,80 @@ function wireTimelineStopClicks(container, sortedStops) {
   });
 }
 
+// a "kyklikes" (circular) route ends back near where it started - roughly
+// a 3-block loop closure, per the OASA route naming convention
+const CIRCULAR_ROUTE_ENDPOINT_METERS = 350;
+
+function isCircularRoute(sortedStops) {
+  if (sortedStops.length < 2) return false;
+  const first = sortedStops[0];
+  const last = sortedStops[sortedStops.length - 1];
+  const d = distanceMeters(
+    { lat: parseFloat(first.StopLat), lng: parseFloat(first.StopLng) },
+    { lat: parseFloat(last.StopLat), lng: parseFloat(last.StopLng) }
+  );
+  return d <= CIRCULAR_ROUTE_ENDPOINT_METERS;
+}
+
+// on a loop, the outbound and return legs can run down parallel streets -
+// two stops close in distance but far apart in the stop sequence. only
+// flag it as ambiguous when a second candidate is both nearly as close
+// and clearly not just the next stop over
+const CIRCULAR_AMBIGUITY_RADIUS_METERS = 120;
+const CIRCULAR_AMBIGUITY_MIN_INDEX_GAP = 3;
+
+function findAmbiguousStopIdx(dists, bestIdx) {
+  for (let i = 0; i < dists.length; i++) {
+    if (i === bestIdx) continue;
+    if (Math.abs(i - bestIdx) < CIRCULAR_AMBIGUITY_MIN_INDEX_GAP) continue;
+    if (dists[i] <= CIRCULAR_AMBIGUITY_RADIUS_METERS && dists[i] <= dists[bestIdx] * 1.6) {
+      return i;
+    }
+  }
+  return null;
+}
+
+async function fetchStopArrivalVehCodes(stopCode) {
+  const url = `${PROXY_URL}${encodeURIComponent(`https://telematics.oasa.gr/api/?act=getStopArrivals&p1=${stopCode}&t=${Date.now()}`)}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data.map((a) => a.veh_code) : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+// disambiguates two geometrically-close-but-sequence-distant stops by
+// checking which one's own live arrivals actually list this vehicle
+async function resolveCircularAmbiguity(bus, idxA, idxB, sortedStops) {
+  const [arrivalsA, arrivalsB] = await Promise.all([
+    fetchStopArrivalVehCodes(sortedStops[idxA].StopCode),
+    fetchStopArrivalVehCodes(sortedStops[idxB].StopCode),
+  ]);
+  if (arrivalsA.includes(bus.vehNo)) return idxA;
+  if (arrivalsB.includes(bus.vehNo)) return idxB;
+  return null;
+}
+
 // nearest stop by straight-line distance, then blends toward whichever
-// neighbor is second-closest to get a fractional position between the two
-function estimateBusTimelineIndex(bus, sortedStops) {
+// neighbor is second-closest to get a fractional position between the two.
+// on circular routes, a genuinely ambiguous nearby stop gets resolved via
+// live arrivals instead of trusting geometry alone
+async function estimateBusTimelineIndex(bus, sortedStops, circular) {
   const dists = sortedStops.map((s) => distanceMeters(bus, { lat: parseFloat(s.StopLat), lng: parseFloat(s.StopLng) }));
   let bestIdx = 0;
   dists.forEach((d, i) => { if (d < dists[bestIdx]) bestIdx = i; });
+
+  if (circular) {
+    const altIdx = findAmbiguousStopIdx(dists, bestIdx);
+    if (altIdx !== null) {
+      const resolvedIdx = await resolveCircularAmbiguity(bus, bestIdx, altIdx, sortedStops);
+      if (resolvedIdx !== null) bestIdx = resolvedIdx;
+    }
+  }
+
   const prevDist = bestIdx > 0 ? dists[bestIdx - 1] : Infinity;
   const nextDist = bestIdx < dists.length - 1 ? dists[bestIdx + 1] : Infinity;
   if (nextDist <= prevDist && bestIdx < dists.length - 1) {
@@ -149,27 +217,60 @@ function estimateBusTimelineIndex(bus, sortedStops) {
   return bestIdx;
 }
 
-function renderBusMarkersOnTimeline(detailsEl, buses, sortedStops) {
+async function renderBusMarkersOnTimeline(detailsEl, buses, sortedStops) {
   const countEl = detailsEl.querySelector('.route-bus-count');
   if (countEl) countEl.textContent = `${buses.length} live bus${buses.length === 1 ? '' : 'es'} on the route`;
   const container = detailsEl.querySelector('.route-timeline');
-  container.querySelectorAll('.route-bus-marker').forEach((el) => el.remove());
   const stopEls = container.querySelectorAll('.route-stop');
   if (!stopEls.length) return;
-  buses.forEach((bus) => {
-    const idx = estimateBusTimelineIndex(bus, sortedStops);
+
+  const circular = isCircularRoute(sortedStops);
+  const indices = await Promise.all(buses.map((bus) => estimateBusTimelineIndex(bus, sortedStops, circular)));
+
+  // markers are kept and moved between refreshes (not wiped and redrawn)
+  // so the css top transition can animate them sliding to the new spot
+  // instead of hard-cutting to it
+  if (!container._busMarkersByVeh) container._busMarkersByVeh = new Map();
+  const markersByVeh = container._busMarkersByVeh;
+  const seenVehs = new Set();
+
+  buses.forEach((bus, i) => {
+    let entry = markersByVeh.get(bus.vehNo);
+    let idx = indices[i];
+    // even a correctly-resolved position can wobble stop-to-stop off gps
+    // noise, and a misjudged one can jump way back - either way a bus
+    // sliding backwards up the line reads as broken, so this floor never
+    // lets it regress below where it was last drawn
+    if (entry && idx < entry.lastIdx) idx = entry.lastIdx;
+
     const lowerEl = stopEls[Math.min(Math.floor(idx), stopEls.length - 1)];
     const upperEl = stopEls[Math.min(Math.floor(idx) + 1, stopEls.length - 1)];
     const frac = idx - Math.floor(idx);
     const top = lowerEl.offsetTop + (upperEl.offsetTop - lowerEl.offsetTop) * frac + 7;
-    const marker = document.createElement('div');
-    marker.className = 'route-bus-marker';
-    marker.style.top = `${top}px`;
-    marker.title = `Bus ${bus.vehNo}`;
-    marker.innerHTML = busGlyphIconSvg;
-    // prepended, not appended - keeps the last .route-stop as the
-    // container's actual last-child so its connector line stays hidden
-    container.prepend(marker);
+    seenVehs.add(bus.vehNo);
+
+    if (!entry) {
+      const marker = document.createElement('div');
+      marker.className = 'route-bus-marker';
+      marker.title = `Bus ${bus.vehNo}`;
+      marker.innerHTML = busGlyphIconSvg;
+      marker.style.top = `${top}px`;
+      // prepended, not appended - keeps the last .route-stop as the
+      // container's actual last-child so its connector line stays hidden
+      container.prepend(marker);
+      entry = { el: marker, lastIdx: idx };
+      markersByVeh.set(bus.vehNo, entry);
+    } else {
+      entry.el.style.top = `${top}px`;
+      entry.lastIdx = idx;
+    }
+  });
+
+  markersByVeh.forEach((entry, vehNo) => {
+    if (!seenVehs.has(vehNo)) {
+      entry.el.remove();
+      markersByVeh.delete(vehNo);
+    }
   });
 }
 
@@ -185,7 +286,7 @@ function startRouteStopsBusRefresh(detailsEl, routeCode, sortedStops) {
   const tick = async () => {
     try {
       const buses = await fetchRouteBusLocationsForTimeline(routeCode);
-      renderBusMarkersOnTimeline(detailsEl, buses, sortedStops);
+      await renderBusMarkersOnTimeline(detailsEl, buses, sortedStops);
     } catch (err) {
       console.error('Failed to load route bus locations:', err);
     }

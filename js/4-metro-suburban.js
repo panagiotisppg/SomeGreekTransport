@@ -343,8 +343,8 @@ function renderRouteStop(stop, isThisStation, isChasingSegment, avgDelay = 0) {
     </div>`;
 }
 
-// a delay picked up early usually sticks for the rest of the trip - average
-// it across stops with real data and use that to estimate upcoming stops
+// a delay picked up early doesn't always stick - a driver can claw time
+// back over the trip, so this is used to estimate upcoming stops
 function getStopDelayMinutes(stop) {
   const time = stop.role === 'origin' ? stop.scheduledDeparture : stop.scheduledArrival;
   const actual = stop.role === 'origin' ? stop.actualDeparture : stop.actualArrival;
@@ -352,10 +352,22 @@ function getStopDelayMinutes(stop) {
   return diffMinutes(time, actual);
 }
 
+// a flat average lets one early outlier (e.g. a late departure) dominate
+// the estimate long after the driver has caught back up - weight each
+// passed stop's delay by recency instead, so the most recently passed
+// stop counts full weight and older ones fade out exponentially
+const DELAY_RECENCY_DECAY = 0.6;
+
 function computeAverageRouteDelay(route) {
   const delays = route.map(getStopDelayMinutes).filter(d => d !== null);
   if (!delays.length) return 0;
-  return delays.reduce((sum, d) => sum + d, 0) / delays.length;
+  let weightedSum = 0, weightTotal = 0;
+  delays.forEach((d, i) => {
+    const weight = Math.pow(DELAY_RECENCY_DECAY, delays.length - 1 - i);
+    weightedSum += d * weight;
+    weightTotal += weight;
+  });
+  return weightedSum / weightTotal;
 }
 
 // the chasing segment is the last passed stops own connector line since
@@ -1152,7 +1164,7 @@ function createLiveTrainMarker(lngLat, heading, color) {
   el.style.width = '28px';
   el.style.height = '28px';
   el.innerHTML = createLiveTrainIconSvg(heading, color, false);
-  return new maplibregl.Marker({ element: el }).setLngLat(lngLat);
+  return new maplibregl.Marker({ element: el, rotationAlignment: 'map' }).setLngLat(lngLat);
 }
 
 // last confirmed stop and the next, not origin/destination - prefers the
