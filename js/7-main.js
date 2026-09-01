@@ -319,6 +319,9 @@ document.addEventListener("DOMContentLoaded", () => {
     return { type: "FeatureCollection", features: mergedFeatures };
   };
 
+  // file5 also carries 60 stops (e.g. the whole oropos/afidnes area) that
+  // exist in the route/schedule system per BasicRouteStops_pg but were
+  // missing from oasa's own curated "stops for site" export
   const allStopsFiles = [
     'oasa_db_public_v_mat_latest_stops_forsite1.json',
     'oasa_db_public_v_mat_latest_stops_forsite2.json',
